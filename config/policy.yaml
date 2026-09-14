@@ -19,26 +19,38 @@ allowlist:
     - read
     - wait
 
-# Reversibility classification. Actions that match a "risky" rule are handled
-# conservatively per `risky_action_policy` below.
-risky_actions:
-  # Any click whose accessible name / nearby text matches these = irreversible.
-  submit_intents:
-    - "confirm"
-    - "submit"
-    - "post transaction"
-    - "delete"
-    - "transfer"
-    - "approve"
-  # During discovery, treat reaching one of these URLs as a hard stop for review.
-  terminal_paths:
-    - "/members/*/sub-account/confirm"
+# Risk tiering (assignment 3.4). The EXECUTOR assigns a tier from the action
+# type and target -- never accepted from the artifact's own risk_level hint,
+# because otherwise a mislabelled step could downgrade its own risk.
+risk_tiers:
+  safe_read:
+    action_types: [read, wait]
+  reversible_write:
+    action_types: [navigate, type, select, click]
+  # Matching EITHER condition below marks an action irreversible, regardless
+  # of its action type.
+  irreversible:
+    # accessible name / nearby text containing any of these phrases
+    name_contains:
+      - "confirm"
+      - "submit"
+      - "post transaction"
+      - "delete"
+      - "transfer"
+      - "approve"
+      - "change credit limit"
+      - "close account"
+    # a navigate destination matching any of these glob patterns
+    path_patterns:
+      - "/members/*/change-limit"
+      - "/members/*/sub-account/confirm"
 
-# What to do when a risky action is encountered.
-#   block          - refuse and stop
-#   require_confirm - pause and escalate to a human operator for a decision
-#   flag           - allow, but record a prominent warning in evidence
-risky_action_policy: require_confirm
+# What happens to an IRREVERSIBLE action:
+#   refuse          - hard-refused, always, no unattended path
+#   require_confirm - refused unattended, but escalates for human authorisation (sec 5)
+# There is no "allow unattended" option: the consequences of an unauthorised
+# irreversible action in a core banking system are not recoverable by retrying.
+irreversible_policy: refuse
 
 # Redaction: values matching these are never written to artifacts, logs, or evidence.
 redaction:
