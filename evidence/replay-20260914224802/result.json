@@ -1,7 +1,7 @@
 {
   "capability_id": "acme_core.lookup_savings_balance",
   "capability_version": 2,
-  "run_id": "replay-20260914083444",
+  "run_id": "replay-20260914224802",
   "status": "failed",
   "outputs": null,
   "outcome": null,
@@ -11,13 +11,13 @@
     "kind": "checkpoint_failed",
     "expected": "reached a page headed 'Member Servicing Console'",
     "observed": "at http://127.0.0.1:8800/members/search?inject=500",
-    "screenshot_ref": null,
+    "screenshot_ref": "evidence/replay-20260914224802/s0-failure.png",
     "retryable": false
   },
   "escalation": null,
   "steps": [],
-  "started_at": "2026-09-14T08:34:44.893480Z",
-  "ended_at": "2026-09-14T08:34:44.977213Z",
-  "evidence_dir": "evidence/replay-20260914083444",
+  "started_at": "2026-09-14T22:48:04.380897Z",
+  "ended_at": "2026-09-14T22:48:04.654959Z",
+  "evidence_dir": "evidence/replay-20260914224802",
   "redactions": []
 }

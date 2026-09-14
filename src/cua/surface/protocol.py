@@ -106,3 +106,9 @@ class SurfaceAdapter(Protocol):
     def wait_for(self, condition: Condition, timeout_ms: int) -> bool: ...
 
     def location(self) -> Location: ...
+
+    def screenshot(self, path: str) -> None:
+        """The richer signal on failure assignment sec 3.5 asks for,
+        alongside the structured log. Best-effort: a screenshot failing to
+        save is never itself a reason to fail a run."""
+        ...

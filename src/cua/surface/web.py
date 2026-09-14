@@ -16,6 +16,7 @@ only ever a literal `value` the caller already worked out.
 from __future__ import annotations
 
 import time
+from pathlib import Path
 
 from playwright.sync_api import Browser, Page, Playwright, sync_playwright
 
@@ -171,3 +172,10 @@ class WebAdapter(SurfaceAdapter):
         if path_start == -1:
             return Location(origin=url, path="/")
         return Location(origin=url[:path_start], path=url[path_start:])
+
+    def screenshot(self, path: str) -> None:
+        try:
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            self.page.screenshot(path=path, full_page=True)
+        except Exception:  # noqa: BLE001, S110 -- best-effort; never fail a run over evidence capture
+            pass

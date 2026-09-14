@@ -33,7 +33,9 @@ from cua.schema import (
     Click,
     EscalationRef,
     FailureDetail,
+    Money,
     Navigate,
+    OutputValue,
     Read,
     ReplayResult,
     RoleNameStrategy,
@@ -186,21 +188,51 @@ def _all_hold(conditions, snapshot: SurfaceSnapshot, location: Location) -> bool
     return all(evaluate_condition(c, snapshot, location) for c in conditions)
 
 
-def _redact_outputs(state: _RunState, outputs: dict[str, str]) -> tuple[dict[str, str], list[str]]:
+_MONEY_PARSE_RE = re.compile(r"^\$?([\d,]+\.\d{2})\s+([A-Z]{3})$")
+
+
+def _typed_value(raw: str, output_type: str) -> OutputValue:
+    """Converts the raw string a Read step captured into the type its
+    OutputSpec actually declares -- a "money" output stays a string only
+    until this boundary, never all the way out to the caller. Falls back
+    to the raw string if it doesn't parse; a replay should report an
+    honest string over a fabricated number."""
+    if output_type == "money":
+        m = _MONEY_PARSE_RE.match(raw.strip())
+        if m:
+            return Money(amount_minor=round(float(m.group(1).replace(",", "")) * 100), currency=m.group(2))
+    elif output_type == "integer":
+        try:
+            return int(raw.strip())
+        except ValueError:
+            pass
+    elif output_type == "boolean":
+        return raw.strip().lower() in ("true", "1", "yes")
+    return raw
+
+
+def _redact_outputs(
+    state: _RunState, outputs: dict[str, str]
+) -> tuple[dict[str, OutputValue], list[str]]:
     """Masks any output whose OutputSpec declares a sensitivity, at the one
     boundary this matters -- what actually gets written into the result
     (and from there, evidence). Internal state (`state.outputs`) stays raw
     so a later step can still legitimately use the value; only what leaves
-    via ReplayResult is masked."""
-    sensitivity_by_name = {o.name: o.sensitivity for o in state.capability.outputs}
-    redacted: dict[str, str] = {}
+    via ReplayResult is masked. A value that WASN'T masked is also typed
+    here, per its OutputSpec -- a masked string ("<pii:5 digits>") is left
+    alone rather than fed back through a money/int parser."""
+    spec_by_name = {o.name: o for o in state.capability.outputs}
+    redacted: dict[str, OutputValue] = {}
     redacted_fields: list[str] = []
     for name, value in outputs.items():
-        sensitivity = sensitivity_by_name.get(name, "none")
+        spec = spec_by_name.get(name)
+        sensitivity = spec.sensitivity if spec else "none"
         masked = redact_value(value, sensitivity=sensitivity, field_name=name, policy=state.policy)
-        redacted[name] = masked
         if masked != value:
             redacted_fields.append(name)
+            redacted[name] = masked
+        else:
+            redacted[name] = _typed_value(value, spec.type) if spec else value
     return redacted, redacted_fields
 
 
@@ -432,6 +464,13 @@ def _stop_failed(state: _RunState, step: Step, *, kind: str, expected: str, obse
     # Redaction at the persistence boundary: `observed` is about to be
     # written into a FailureDetail (and from there, evidence), so it gets
     # the same regex pass as everything else that leaves the process here.
+    # The screenshot is the "richer signal on failure" evidence (sec 3.5)
+    # alongside the structured log -- best-effort, treated as sensitive
+    # (kept under the run's own evidence dir, never inlined into a log line).
+    screenshot_ref = None
+    if state.evidence_dir:
+        screenshot_ref = f"{state.evidence_dir}/{step.id}-failure.png"
+        state.adapter.screenshot(screenshot_ref)
     raise _Stop(
         _finish(
             state,
@@ -442,6 +481,7 @@ def _stop_failed(state: _RunState, step: Step, *, kind: str, expected: str, obse
                 kind=kind,
                 expected=expected,
                 observed=redact_text(observed, state.policy),
+                screenshot_ref=screenshot_ref,
             ),
         )
     )
@@ -471,7 +511,7 @@ def _escalate_and_wait(
     *,
     poll_s: float,
     max_wait_s: float,
-) -> tuple[str, dict[str, str]]:
+) -> tuple[str, dict[str, OutputValue]]:
     """Raises the intervention, then blocks -- polling the SAME broker a
     separate `cua ops claim/release` invocation writes to -- until control
     comes back as RESUMING, or `max_wait_s` elapses. The adapter/browser is

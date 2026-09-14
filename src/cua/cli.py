@@ -285,9 +285,14 @@ def replay(
     }[result.status]
     typer.secho(f"status: {result.status}  ({time.time() - started:.2f}s)", fg=color)
     if result.status == "success":
-        typer.echo(f"outputs: {json.dumps(result.outputs, indent=2)}")
+        # pydantic's own serialization, not stdlib json.dumps -- an output
+        # can be a Money object now, which json.dumps doesn't know how to
+        # encode on its own.
+        dumped = result.model_dump(mode="json")["outputs"]
+        typer.echo(f"outputs: {json.dumps(dumped, indent=2)}")
     elif result.status == "business_outcome":
-        typer.echo(f"code: {result.outcome.code}  outputs: {json.dumps(result.outcome.outputs)}")
+        dumped = result.model_dump(mode="json")["outcome"]["outputs"]
+        typer.echo(f"code: {result.outcome.code}  outputs: {json.dumps(dumped)}")
     elif result.status == "failed":
         typer.echo(
             f"step {result.failure.step_id!r} ({result.failure.kind}): "
