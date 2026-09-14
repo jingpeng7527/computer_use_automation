@@ -22,3 +22,6 @@ node_modules/
 
 # OS
 .DS_Store
+
+# Editor local history
+.history/

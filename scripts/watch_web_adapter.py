@@ -28,6 +28,7 @@ from cua.schema import (
     TypeText,
 )
 from cua.surface import WebAdapter
+from cua.target_app.data import MEMBERS
 
 BASE_URL = "http://127.0.0.1:8800"
 
@@ -66,6 +67,14 @@ def main() -> None:
         r = adapter.resolve(balance_field)
         value = adapter.act(Read(into="savings_balance"), resolution=r)
         print(f"6. read balance (layer {r.layer}): {value!r}")
+
+        # Assert against the SAME source data.py renders from -- not a
+        # number retyped here, which is exactly how a real balance change
+        # in data.py went unnoticed by every test the first time around.
+        member = MEMBERS["12345"]
+        expected = f"${member['savings_balance_minor'] / 100:.2f} {member['currency']}"
+        assert value == expected, f"page shows {value!r}, but data.py says {expected!r}"
+        print(f"   matches data.py ({expected!r}) -- OK")
 
         print("\nEND TO END OK -- browser stays open 5s so you can look")
         import time

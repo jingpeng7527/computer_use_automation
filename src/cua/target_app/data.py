@@ -20,7 +20,7 @@ class Member(TypedDict):
 MEMBERS: dict[str, Member] = {
     "12345": {
         "name": "Dolores Ibarra",
-        "savings_balance_minor": 815_000,
+        "savings_balance_minor": 816_000,
         "currency": "USD",
     },
 }
