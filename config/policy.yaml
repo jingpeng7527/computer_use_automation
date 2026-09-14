@@ -1,0 +1,60 @@
+# Safety & policy guardrails (assignment 3.4).
+# Loaded by both the discovery agent and the deterministic replay engine.
+# Default posture: deny. Anything not explicitly allowed is refused.
+
+allowlist:
+  # The agent/replay may only navigate URLs whose origin is in this list.
+  origins:
+    - "http://127.0.0.1:8800"
+    - "http://localhost:8800"
+  # Only these URL path prefixes are in scope for automation.
+  path_prefixes:
+    - "/"
+  # Action types the agent is permitted to emit at all.
+  action_types:
+    - navigate
+    - click
+    - type
+    - select
+    - read
+    - wait
+
+# Reversibility classification. Actions that match a "risky" rule are handled
+# conservatively per `risky_action_policy` below.
+risky_actions:
+  # Any click whose accessible name / nearby text matches these = irreversible.
+  submit_intents:
+    - "confirm"
+    - "submit"
+    - "post transaction"
+    - "delete"
+    - "transfer"
+    - "approve"
+  # During discovery, treat reaching one of these URLs as a hard stop for review.
+  terminal_paths:
+    - "/members/*/sub-account/confirm"
+
+# What to do when a risky action is encountered.
+#   block          - refuse and stop
+#   require_confirm - pause and escalate to a human operator for a decision
+#   flag           - allow, but record a prominent warning in evidence
+risky_action_policy: require_confirm
+
+# Redaction: values matching these are never written to artifacts, logs, or evidence.
+redaction:
+  # Named regexes applied to all persisted strings.
+  patterns:
+    ssn: '\b\d{3}-\d{2}-\d{4}\b'
+    email: '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'
+    long_number: '\b\d{9,}\b'          # account numbers, card numbers
+    bearer_token: '(?i)bearer\s+[A-Za-z0-9._\-]+'
+  # Field names whose values are always masked regardless of content.
+  sensitive_field_names:
+    - password
+    - ssn
+    - social_security_number
+    - card_number
+    - account_number
+    - routing_number
+    - token
+    - authorization

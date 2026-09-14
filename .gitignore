@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Env / secrets
+.env
+*.local
+
+# Playwright
+/playwright/.cache/
+node_modules/
+
+# Run outputs (evidence/ IS committed for the submission; runs/ is scratch)
+/runs/
+*.log
+
+# OS
+.DS_Store
