@@ -518,12 +518,14 @@ def _escalate_and_wait(
     never touched here except to observe: whatever fix happens, happens on
     the live session directly, outside this function. Returns one of
     ("success", outputs), ("resume_next", {}), ("give_up", {})."""
+    screenshot_ref = None
     if stop_result.failure is not None:
         reason, expected, observed = (
             stop_result.failure.kind,
             stop_result.failure.expected,
             stop_result.failure.observed,
         )
+        screenshot_ref = stop_result.failure.screenshot_ref
     else:
         assert stop_result.escalation is not None
         reason, expected, observed = stop_result.escalation.reason, "human authorisation required", ""
@@ -539,6 +541,8 @@ def _escalate_and_wait(
         observed=observed,
         evidence_dir=state.evidence_dir,
         policy=state.policy,
+        screenshot_ref=screenshot_ref,
+        completed_steps=[s.step_id for s in state.step_results],
     )
 
     waited = 0.0

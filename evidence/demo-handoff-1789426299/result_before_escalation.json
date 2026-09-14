@@ -1,7 +1,7 @@
 {
   "capability_id": "acme_core.lookup_savings_balance",
   "capability_version": 2,
-  "run_id": "demo-handoff-1789419467",
+  "run_id": "demo-handoff-1789426299",
   "status": "failed",
   "outputs": null,
   "outcome": null,
@@ -11,13 +11,13 @@
     "kind": "checkpoint_failed",
     "expected": "reached a page headed 'Member Servicing Console'",
     "observed": "at http://127.0.0.1:8800/members/search?inject=500",
-    "screenshot_ref": null,
+    "screenshot_ref": "evidence/demo-handoff-1789426299/s0-failure.png",
     "retryable": false
   },
   "escalation": null,
   "steps": [],
-  "started_at": "2026-09-14T20:57:50.193968Z",
-  "ended_at": "2026-09-14T20:57:50.322124Z",
-  "evidence_dir": "evidence/demo-handoff-1789419467",
+  "started_at": "2026-09-14T22:51:43.610128Z",
+  "ended_at": "2026-09-14T22:51:43.908500Z",
+  "evidence_dir": "evidence/demo-handoff-1789426299",
   "redactions": []
 }

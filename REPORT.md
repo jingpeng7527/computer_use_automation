@@ -4,9 +4,9 @@ A computer-use system that discovers a UI flow once with an LLM, compiles it int
 capability artifact, and then executes that artifact deterministically with no model in the
 decision loop.
 
-Target surface: a locally hosted mock core-banking portal (`mock_bank/`), written deliberately
-in a legacy style. Implementation language is Python; the browser is driven by Playwright in
-headed mode.
+Target surface: a locally hosted mock core-banking portal (`src/cua/target_app/`), written
+deliberately in a legacy style. Implementation language is Python; the browser is driven by
+Playwright in headed mode.
 
 ---
 
@@ -38,7 +38,7 @@ cross-cutting: Policy Gate | Observability | Control Broker
 ```
 
 The only thing the two paths share is the artifact. Discovery writes it; replay reads it.
-Deleting `src/discovery/` entirely would not affect replay. That independence is the point:
+Deleting `src/cua/agent/` entirely would not affect replay. That independence is the point:
 the production path must not be able to invoke a model even by accident.
 
 **Key decisions and trade-offs**
@@ -112,20 +112,23 @@ review; classification is not, which is why classification is derived and naming
 structured decision per step, via tool calling, and never for free-form text. Swapping providers
 is a new class implementing `LLMProvider.decide()`.
 
-The implementation runs against an open-weight model served by Groq, through its
-OpenAI-compatible endpoint. Three reasons, in order. The perception choice makes vision
-capability irrelevant: the model is shown a normalised list of interactive nodes, not a
-screenshot, so what is required of it is tool calling over a text observation rather than
-coordinate estimation, and a purpose-built computer-use model would be answering a question this
-design does not ask. Low latency matters more than it looks, because a discovery run is several
-sequential model calls and the loop is developed by re-running it. And the free tier covers the
-handful of successful runs this needs, which keeps the cost of a real discovery run near zero.
+The implementation calls Gemini as the primary provider, with an open-weight model served by
+Groq (through its OpenAI-compatible endpoint) as a secondary fallback used only if the primary
+call itself raises — `FallbackProvider` tries Gemini first and only reaches for Groq on an
+error, not as a load-balanced choice. Two-provider redundancy was chosen over a single provider
+because a discovery run's one non-negotiable requirement is that it actually completes; a
+transient error or rate limit on one provider shouldn't be able to fail the whole run when a
+second, independently-hosted model can pick up the exact same tool-calling contract. The
+perception choice makes provider vision capability irrelevant either way: the model is shown a
+normalised list of interactive nodes, not a screenshot, so what's required of it is tool calling
+over a text observation rather than coordinate estimation, and a purpose-built computer-use
+model would be answering a question this design doesn't ask.
 
-Two consequences are stated rather than discovered later. Rate limits on that tier mean the
-observation sent per step is trimmed to interactive nodes, with screenshots kept as evidence
-rather than sent as input; that is a constraint the perception design already wanted. And the
-hosted model catalogue rotates, so the contract in this system is `LLMProvider.decide()` and the
-model id is configuration, not architecture.
+The hosted model catalogue rotates faster than expected: `gemini-2.5-flash` was retired
+mid-build ("no longer available to new users"), which is exactly the scenario the interface is
+for. The fix was a one-line default change (`CUA_LLM_MODEL=gemini-3.6-flash`), not a code
+change — the contract in this system is `LLMProvider.decide()`, and the model id is
+configuration, read from the environment, not architecture.
 
 ---
 
@@ -155,13 +158,19 @@ binary floating point cannot represent decimal currency exactly.
 
 **Declared outcomes.** A top-level `possible_outcomes` list of the business outcome codes this
 capability can return, alongside `inputs` and `outputs` rather than buried in the runtime rules
-below. For the implemented capability that list is `MEMBER_NOT_FOUND`, `ACCOUNT_FROZEN`,
-`PERMISSION_DENIED` and `SESSION_LOST_DURING_HANDOFF`. Failure codes are not declared here
-because they are system-level and identical across capabilities; business outcomes are specific
-to what this capability can legitimately answer. A calling agent needs to know that
-`lookup_savings_balance` can answer `MEMBER_NOT_FOUND` before it invokes it, and it should not have to read detection rules to find
-that out, any more than an HTTP client reads server code to learn that 404 is possible. The
-contract declares what can come back; `runtime_matches` is the engine's business.
+below, and validated at construction time to match `runtime_matches` in both directions: a code
+with no rule that can produce it is rejected exactly like a rule producing an undeclared code.
+The implemented capability's list, after the hardening pass, is `["MEMBER_NOT_FOUND"]` — the one
+divergence actually observed against the mock portal. `ACCOUNT_FROZEN`, `PERMISSION_DENIED` and
+`SESSION_LOST_DURING_HANDOFF` are real codes this design accounts for (Sections 4 and 5
+respectively) but were not exercised: producing them needs member fixtures and a session-timeout
+mechanism the target app doesn't implement, cut for time rather than silently dropped — see
+Section 7. Failure codes are not declared here because they are system-level and identical
+across capabilities; business outcomes are specific to what this capability can legitimately
+answer. A calling agent needs to know that `lookup_savings_balance` can answer `MEMBER_NOT_FOUND`
+before it invokes it, and it should not have to read detection rules to find that out, any more
+than an HTTP client reads server code to learn that 404 is possible. The contract declares what
+can come back; `runtime_matches` is the engine's business.
 
 **Ordered steps.** Each step carries an `action`, a `risk_level`, a layered `target`, an optional
 `wait`, and a `checkpoint`. Steps bind values by reference and never by literal, which serves
@@ -223,12 +232,16 @@ strategy.
 **No static confidence scores.** An earlier draft attached a fixed `confidence` to each strategy.
 That number had no defensible origin. Strategy reliability is instead measured: replay records
 which layer resolved each target, and sustained fallback to a lower layer is the drift signal
-described in Section 4. Reliability is observed, not asserted.
+described in Section 4. Reliability is observed, not asserted. Each strategy does carry one
+free-text `rationale` field — never read by the resolution algorithm, purely for a human
+reviewer — which is where the "reasoning about robustness" the brief asks for actually lives;
+this is documentation, not a second confidence score, and nothing in the engine consumes it.
 
-The full schema, as Pydantic models plus one worked example, is in `src/schema/` and
-`evidence/artifacts/`. Pydantic gives runtime validation, JSON round-tripping and JSON Schema
-export in one definition, so the schema is simultaneously the contract published to callers and
-the validator that rejects a malformed artifact before it can touch a browser.
+The full schema, as Pydantic models plus a worked example built against a real discovery run, is
+in `src/cua/schema/` and `artifacts/acme_core.lookup_savings_balance/`. Pydantic gives runtime
+validation, JSON round-tripping and JSON Schema export in one definition, so the schema is
+simultaneously the contract published to callers and the validator that rejects a malformed
+artifact before it can touch a browser.
 
 ---
 
@@ -302,17 +315,21 @@ answer to the caller's question, not an exception. Raising it as a failure would
 with non-incidents and bury the real ones. Concretely, three result shapes:
 
 ```json
-{ "status": "SUCCESS",
-  "outputs": { "savings_balance": { "amount_minor": 815000, "currency": "USD" } } }
+{ "status": "success",
+  "outputs": { "savings_balance": { "amount_minor": 816000, "currency": "USD" } } }
 
-{ "status": "BUSINESS_OUTCOME", "code": "MEMBER_NOT_FOUND",
-  "message": "no member matching the supplied id" }
+{ "status": "business_outcome",
+  "outcome": { "code": "MEMBER_NOT_FOUND", "description": "member_not_found", "outputs": {} } }
 
-{ "status": "FAILURE", "code": "CHECKPOINT_FAILED", "failed_step": "s3",
-  "expected": "heading 'Member Detail' visible",
-  "observed": "text 'System Error 500'",
-  "evidence": "evidence/replay-r004/s3.png" }
+{ "status": "failed",
+  "failure": { "step_id": "s0", "kind": "checkpoint_failed",
+    "expected": "reached a page headed 'Member Servicing Console'",
+    "observed": "at http://127.0.0.1:8800/members/search?inject=500",
+    "screenshot_ref": "evidence/replay-20260914224802/s0-failure.png" } }
 ```
+
+(field names and casing above are the actual `ReplayResult`/`FailureDetail`/`BusinessOutcomeResult`
+shapes, taken from committed evidence rather than restated from memory.)
 
 **Recovery is bounded in three ways, and the structural one does most of the work.** Recovery
 actions are declared on the `runtime_matches` entry that detects the condition, not on a step, so

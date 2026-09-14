@@ -28,6 +28,8 @@ def raise_intervention(
     observed: str,
     evidence_dir: str,
     policy: Policy,
+    screenshot_ref: str | None = None,
+    completed_steps: list[str] | None = None,
 ) -> str:
     intervention_id = f"{run_id}-intervention"
     payload = {
@@ -39,6 +41,8 @@ def raise_intervention(
         "reason": reason,
         "expected": expected,
         "observed": redact_text(observed, policy),
+        "screenshot_ref": screenshot_ref,
+        "completed_steps": completed_steps or [],
         "session_handle": run_id,  # how the operator's tooling finds THIS session, not a fresh one
         "raised_at": time.time(),
     }
