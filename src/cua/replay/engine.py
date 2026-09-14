@@ -25,7 +25,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from cua.safety import Policy, check_allowed, gate
+from cua.safety import Policy, check_allowed, gate, redact_text, redact_value
 from cua.schema import (
     BusinessOutcomeResult,
     Capability,
@@ -108,7 +108,8 @@ def replay(
     location = state.adapter.location()
     snapshot = state.adapter.observe()
     if _all_hold(capability.success_condition.all_of, snapshot, location):
-        return _finish(state, "success", outputs=dict(state.outputs))
+        outputs, redacted = _redact_outputs(state, state.outputs)
+        return _finish(state, "success", outputs=outputs, redactions=redacted)
 
     return _finish(
         state,
@@ -150,6 +151,24 @@ def _validate_params(capability: Capability, params: dict[str, str]) -> FailureD
 
 def _all_hold(conditions, snapshot: SurfaceSnapshot, location: Location) -> bool:
     return all(evaluate_condition(c, snapshot, location) for c in conditions)
+
+
+def _redact_outputs(state: _RunState, outputs: dict[str, str]) -> tuple[dict[str, str], list[str]]:
+    """Masks any output whose OutputSpec declares a sensitivity, at the one
+    boundary this matters -- what actually gets written into the result
+    (and from there, evidence). Internal state (`state.outputs`) stays raw
+    so a later step can still legitimately use the value; only what leaves
+    via ReplayResult is masked."""
+    sensitivity_by_name = {o.name: o.sensitivity for o in state.capability.outputs}
+    redacted: dict[str, str] = {}
+    redacted_fields: list[str] = []
+    for name, value in outputs.items():
+        sensitivity = sensitivity_by_name.get(name, "none")
+        masked = redact_value(value, sensitivity=sensitivity, field_name=name, policy=state.policy)
+        redacted[name] = masked
+        if masked != value:
+            redacted_fields.append(name)
+    return redacted, redacted_fields
 
 
 def _eligible_matches(
@@ -315,7 +334,8 @@ def _apply_match(
                 duration_ms=int((time.monotonic() - start) * 1000),
             )
         )
-        outcome_outputs = {k: state.outputs[k] for k in match.result_outputs if k in state.outputs}
+        raw_outcome_outputs = {k: state.outputs[k] for k in match.result_outputs if k in state.outputs}
+        outcome_outputs, redacted = _redact_outputs(state, raw_outcome_outputs)
         raise _Stop(
             _finish(
                 state,
@@ -326,6 +346,7 @@ def _apply_match(
                     detected_after_step=step.id,
                     outputs=outcome_outputs,
                 ),
+                redactions=redacted,
             )
         )
 
@@ -375,12 +396,19 @@ def _apply_match(
 
 
 def _stop_failed(state: _RunState, step: Step, *, kind: str, expected: str, observed: str) -> None:
+    # Redaction at the persistence boundary: `observed` is about to be
+    # written into a FailureDetail (and from there, evidence), so it gets
+    # the same regex pass as everything else that leaves the process here.
     raise _Stop(
         _finish(
             state,
             "failed",
             failure=FailureDetail(
-                step_id=step.id, step_intent=step.intent, kind=kind, expected=expected, observed=observed
+                step_id=step.id,
+                step_intent=step.intent,
+                kind=kind,
+                expected=expected,
+                observed=redact_text(observed, state.policy),
             ),
         )
     )

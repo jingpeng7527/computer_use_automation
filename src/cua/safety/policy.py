@@ -42,11 +42,26 @@ class RedactionConfig(BaseModel):
     sensitive_field_names: list[str] = Field(default_factory=list)
 
 
+class ExecutionBounds(BaseModel):
+    max_steps: int = 25
+    wall_clock_ceiling_s: float = 300
+    per_wait_timeout_ms: int = 10_000
+    recovery_budget_per_run: int = 5
+    no_progress_max_consecutive_steps: int = 3
+
+
+class KeepAlive(BaseModel):
+    route: str = "/"
+    interval_s: float = 60
+
+
 class Policy(BaseModel):
     allowlist: AllowlistConfig
     risk_tiers: RiskTiers
     irreversible_policy: Literal["refuse", "require_confirm"] = "refuse"
     redaction: RedactionConfig = Field(default_factory=RedactionConfig)
+    execution_bounds: ExecutionBounds = Field(default_factory=ExecutionBounds)
+    keep_alive: KeepAlive = Field(default_factory=KeepAlive)
 
 
 def load_policy(path: Path | str = "config/policy.yaml") -> Policy:

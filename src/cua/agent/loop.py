@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from cua.safety import Policy, check_allowed, gate
+from cua.safety import BoundExceeded, ExecutionGuard, Policy, check_allowed, gate
 from cua.schema import Click, Navigate, Read, TypeText
 from cua.surface import InteractiveNode, ResolutionResult, SurfaceAdapter, SurfaceSnapshot
 
@@ -32,10 +32,6 @@ SYSTEM_PROMPT = (
     "explain why in `reason`. Do not repeat an action that was just refused or that "
     "produced an error without trying something different."
 )
-
-
-class BoundExceeded(Exception):
-    pass
 
 
 @dataclass
@@ -120,22 +116,16 @@ def run_discovery(
         )
     )
 
-    last_observation: str | None = None
-    stale_steps = 0
+    guard = ExecutionGuard(policy)
 
     for step_index in range(max_steps):
+        guard.check_step()  # wall-clock ceiling; step count is also bounded by max_steps above
+
         snapshot = adapter.observe()
         location = adapter.location()
         location_str = f"{location.origin}{location.path}"
         observation = _render_observation(snapshot, location_str)
-
-        if observation == last_observation:
-            stale_steps += 1
-            if stale_steps >= 3:
-                raise BoundExceeded(f"no progress for {stale_steps} consecutive steps")
-        else:
-            stale_steps = 0
-        last_observation = observation
+        guard.check_progress(observation)  # raises BoundExceeded on N stale steps in a row
 
         messages.append({"role": "user", "content": observation})
         call = provider.decide(messages, TOOLS)

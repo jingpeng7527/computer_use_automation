@@ -70,3 +70,21 @@ redaction:
     - routing_number
     - token
     - authorization
+
+# Execution bounds (assignment 3.4/6). An unbounded loop isn't just a cost
+# problem -- it's repeatedly clicking a real back-office application.
+# Enforced by the executor, shared by discovery and replay, never accepted
+# from the artifact or decided by the model.
+execution_bounds:
+  max_steps: 25
+  wall_clock_ceiling_s: 300
+  per_wait_timeout_ms: 10000
+  recovery_budget_per_run: 5
+  no_progress_max_consecutive_steps: 3
+
+# While a run is PAUSED awaiting a human operator (sec 5), the executor
+# pings this route periodically so the target app's session doesn't expire
+# out from under the handoff. Must be a SAFE_READ route.
+keep_alive:
+  route: "/members/search"
+  interval_s: 60
