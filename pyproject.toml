@@ -42,3 +42,8 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 src = ["src", "tests"]
+
+[tool.ruff.lint.per-file-ignores]
+# Typer's own documented pattern is `= typer.Option(...)` as the argument
+# default; B008 doesn't know that and flags every CLI option in the file.
+"src/cua/cli.py" = ["B008"]
