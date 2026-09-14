@@ -16,7 +16,22 @@ The flow is search -> results -> detail, matching the assignment's own
 "non-trivial multi-step flow" suggestion, and giving all three layers a
 real reason to exist rather than a contrived one.
 
-Phase B is happy-path only: one member (12345), no error injection yet.
+Beyond the happy path (member 12345), this app can be made to produce the
+two divergences the hardening pass (agent/hardening.py) needs to derive a
+real error taxonomy from observed behaviour, not a guessed list:
+
+    unknown member id         -> search page re-renders with a plain,
+                                  detectable "No member records match"
+                                  message (a legitimate business outcome)
+    ?inject=500 on /members/search -> a genuine HTTP 500 with "System
+                                  Error" text (a hard failure)
+
+The detail page also carries two fixtures unrelated to this capability's
+own step path, present for realism/testability rather than because this
+flow needs them: a decorative nav element with no accessible name at all
+(a locator-exhaustion case), and a real "Change Credit Limit" button
+(role+name resolve it easily at layer 1 -- what's interesting about it is
+its IRREVERSIBLE risk tier, exercised by safety/risk.py, not its locator).
 """
 
 from __future__ import annotations
@@ -24,7 +39,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from .data import MEMBERS
@@ -39,17 +54,19 @@ def index() -> RedirectResponse:
 
 
 @app.get("/members/search")
-def search_form(request: Request):
-    return templates.TemplateResponse(request, "search.html", {})
+def search_form(request: Request, not_found: str | None = None, inject: str | None = None):
+    if inject == "500":
+        return PlainTextResponse(
+            "System Error 500: an internal failure occurred while loading this page.",
+            status_code=500,
+        )
+    return templates.TemplateResponse(request, "search.html", {"not_found": not_found})
 
 
 @app.post("/members/search")
 def search_submit(member_id: str = Form(...)) -> RedirectResponse:
     if member_id not in MEMBERS:
-        # Happy-path only for now: a real "no such member" business outcome,
-        # with something the discovery loop's hardening pass can detect,
-        # lands in a later phase.
-        return RedirectResponse(url="/members/search", status_code=303)
+        return RedirectResponse(url=f"/members/search?not_found={member_id}", status_code=303)
     return RedirectResponse(url=f"/members/{member_id}/results", status_code=303)
 
 
@@ -64,10 +81,22 @@ def results(request: Request, member_id: str):
 
 
 @app.get("/members/{member_id}/detail")
-def detail(request: Request, member_id: str):
+def detail(request: Request, member_id: str, inject: str | None = None):
+    if inject == "500":
+        return PlainTextResponse(
+            "System Error 500: an internal failure occurred while loading this page.",
+            status_code=500,
+        )
     member = MEMBERS.get(member_id)
     if member is None:
         return RedirectResponse(url="/members/search", status_code=303)
     return templates.TemplateResponse(
         request, "detail.html", {"member_id": member_id, "member": member}
     )
+
+
+@app.post("/members/{member_id}/change-limit")
+def change_limit(member_id: str) -> PlainTextResponse:
+    # Never actually reached: policy.yaml's IRREVERSIBLE tier refuses the
+    # click on this control before the browser ever submits the form.
+    return PlainTextResponse("limit changed")

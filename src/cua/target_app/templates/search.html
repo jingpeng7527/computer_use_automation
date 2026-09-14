@@ -3,6 +3,9 @@
 <head><title>Member Search</title></head>
 <body>
 <h1>Member Servicing Console</h1>
+{% if not_found %}
+<p>No member records match {{ not_found }}</p>
+{% endif %}
 <form method="post" action="/members/search">
   <table>
     <tr>

@@ -3,10 +3,16 @@
 <head><title>Member Detail</title></head>
 <body>
 <h1>Member Detail</h1>
+<!-- decorative nav element, no accessible name at all: a real locator-
+     exhaustion fixture, unrelated to this capability's own step path -->
+<img src="/static/tab_sav.gif" />
 <table border="1">
   <tr><td>Member Number</td><td>{{ member_id }}</td></tr>
   <tr><td>Name</td><td>{{ member.name }}</td></tr>
   <tr><td>Savings Balance</td><td>${{ "%.2f"|format(member.savings_balance_minor / 100) }} {{ member.currency }}</td></tr>
 </table>
+<form method="post" action="/members/{{ member_id }}/change-limit">
+  <button type="button" aria-label="Change Credit Limit">Change Credit Limit</button>
+</form>
 </body>
 </html>

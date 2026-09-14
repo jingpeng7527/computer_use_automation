@@ -193,38 +193,41 @@ def _act(state: _RunState, step: Step, resolution: ResolutionResult | None) -> s
 
 def _run_step(state: _RunState, step: Step) -> None:
     capability = state.capability
+    start = time.monotonic()
 
     resolution = _resolve_target(state, step)
-    if step.target is not None and (resolution is None or not resolution.resolved):
-        _stop_failed(
-            state,
-            step,
-            kind="target_not_found",
-            expected=step.target.strategies[0].rationale or "a resolvable target",
-            observed="no strategy resolved to exactly one element",
-        )
+    target_missing = step.target is not None and (resolution is None or not resolution.resolved)
 
-    destination = step.action.url_template if isinstance(step.action, Navigate) else None
-    location = state.adapter.location()
-    allow = check_allowed(
-        step.action.type, state.policy, current_location=location, destination=destination
-    )
-    if not allow.allowed:
-        _stop_failed(state, step, kind="policy_blocked", expected="allowlisted action", observed=allow.reason)
-
-    risk = gate(step.action.type, state.policy, resolution=resolution, destination=destination)
-    if not risk.allowed_unattended:
-        _stop_escalated(state, step, reason=risk.reason)
-
-    start = time.monotonic()
-    try:
-        _act(state, step, resolution)
-    except Exception as exc:  # noqa: BLE001 -- becomes a hard failure, not swallowed
-        _stop_failed(state, step, kind="app_error", expected="action to succeed", observed=str(exc))
-
+    # A target that can't be found is NOT an immediate hard failure -- it's
+    # exactly what happens when discovery's happy-path steps get diverted to
+    # a legitimate business-outcome page instead (there's no "View" link on
+    # a "no member records match" page). So this falls through to the same
+    # terminal-match check every other divergence goes through, below,
+    # rather than stopping here. If a control action still can't proceed
+    # once resolution.resolved is confirmed, it always has a resolution.
     wait_ok = True
-    if step.wait is not None:
-        wait_ok = state.adapter.wait_for(step.wait.until, step.wait.timeout_ms)
+    if not target_missing:
+        destination = step.action.url_template if isinstance(step.action, Navigate) else None
+        location = state.adapter.location()
+        allow = check_allowed(
+            step.action.type, state.policy, current_location=location, destination=destination
+        )
+        if not allow.allowed:
+            _stop_failed(
+                state, step, kind="policy_blocked", expected="allowlisted action", observed=allow.reason
+            )
+
+        risk = gate(step.action.type, state.policy, resolution=resolution, destination=destination)
+        if not risk.allowed_unattended:
+            _stop_escalated(state, step, reason=risk.reason)
+
+        try:
+            _act(state, step, resolution)
+        except Exception as exc:  # noqa: BLE001 -- becomes a hard failure, not swallowed
+            _stop_failed(state, step, kind="app_error", expected="action to succeed", observed=str(exc))
+
+        if step.wait is not None:
+            wait_ok = state.adapter.wait_for(step.wait.until, step.wait.timeout_ms)
 
     # ONE snapshot; the terminal-match check, the checkpoint, and (if that
     # fails) the remaining-match fallback all read this same observation.
@@ -235,6 +238,19 @@ def _run_step(state: _RunState, step: Step) -> None:
     hit = next((m for m in terminal if evaluate_condition(m.detect, snapshot, location)), None)
     if hit is not None:
         _apply_match(state, step, hit, resolution, start)
+        return
+
+    if target_missing:
+        _classify_or_fail(
+            state,
+            step,
+            resolution,
+            start,
+            snapshot,
+            location,
+            kind="target_not_found",
+            expected=step.target.strategies[0].rationale or "a resolvable target",
+        )
         return
 
     checkpoint_ok = _all_hold(step.checkpoint.all_of, snapshot, location) if step.checkpoint else True
@@ -263,17 +279,20 @@ def _classify_or_fail(
     location: Location,
     *,
     kind: str,
+    expected: str | None = None,
 ) -> None:
     remaining = _eligible_matches(state.capability.runtime_matches, step.id, terminal=False)
     hit = next((m for m in remaining if evaluate_condition(m.detect, snapshot, location)), None)
     if hit is not None:
         _apply_match(state, step, hit, resolution, start)
         return
+    if expected is None:
+        expected = step.checkpoint.description if step.checkpoint else "no declared state to check"
     _stop_failed(
         state,
         step,
         kind=kind,
-        expected=step.checkpoint.description if step.checkpoint else "no declared state to check",
+        expected=expected,
         observed=f"at {location.origin}{location.path}",
     )
 
