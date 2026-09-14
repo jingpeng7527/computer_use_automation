@@ -1,13 +1,20 @@
 """Single entrypoint for every moving part of the system.
 
     cua serve-target     # run the local mock legacy console (the "target app")
-    cua operator         # run the mock operator console + escalation broker
     cua discover         # LLM-driven discovery run -> emits a capability artifact
     cua harden           # replay with bad input (no LLM), derive a runtime_match
     cua replay           # deterministic replay of an artifact (no LLM)
+    cua ops              # claim/release/status -- the human side of a handoff
     cua catalog          # list saved capability artifacts
 
 Only `discover` ever calls an LLM.
+
+There is no HTTP "operator console": the operator's real interface is the
+already-open, headed browser window `cua replay` leaves on screen when it
+gets stuck -- see REPORT.md sec 5 / 系统设计.md sec 1.6 for why a service
+proxying that session was rejected. `cua ops` is the bookkeeping side only
+(a SQLite row saying who's in control); the operator's actual "manual fix"
+happens by hand, directly in that window, outside this CLI entirely.
 """
 
 from __future__ import annotations
@@ -18,6 +25,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = typer.Typer(add_completion=False, no_args_is_help=True, help=__doc__)
+ops_app = typer.Typer(add_completion=False, no_args_is_help=True, help="Claim/release control of a stuck run.")
+app.add_typer(ops_app, name="ops")
 
 
 @app.command("serve-target")
@@ -31,15 +40,53 @@ def serve_target(
     uvicorn.run("cua.target_app.app:app", host=host, port=port, log_level="info")
 
 
-@app.command("operator")
-def operator(
-    host: str = "127.0.0.1",
-    port: int = 8850,
+@ops_app.command("claim")
+def ops_claim(
+    run_id: str,
+    holder: str = typer.Option("operator", help="who's claiming it (a name, for the audit trail)."),
+    lease_seconds: float = typer.Option(300, help="how long the claim is good for before it's reclaimable."),
 ) -> None:
-    """Run the mock operator console + human-in-the-loop escalation broker."""
-    import uvicorn
+    """Claim control of a PAUSED run. Fails if someone else already holds an unexpired lease."""
+    from cua.escalation import ControlBroker
 
-    uvicorn.run("cua.escalation.operator_app:app", host=host, port=port, log_level="info")
+    broker = ControlBroker()
+    if broker.claim(run_id, holder=holder, lease_seconds=lease_seconds):
+        typer.secho(f"claimed {run_id!r} as {holder!r}.", fg=typer.colors.GREEN)
+        typer.echo("the browser window cua replay left open is yours to operate directly.")
+        typer.echo(f"when done: cua ops release {run_id} --holder {holder}")
+    else:
+        row = broker.get_state(run_id)
+        typer.secho(
+            f"could not claim {run_id!r}: current state is "
+            f"{row.state if row else 'unknown'} (holder={row.holder if row else None!r}).",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
+
+
+@ops_app.command("release")
+def ops_release(run_id: str, holder: str = typer.Option("operator")) -> None:
+    """Hand control back. The waiting `cua replay` process notices and resumes."""
+    from cua.escalation import ControlBroker
+
+    broker = ControlBroker()
+    if broker.release(run_id, holder=holder):
+        typer.secho(f"released {run_id!r}; the automation will resume.", fg=typer.colors.GREEN)
+    else:
+        typer.secho(f"could not release {run_id!r} as {holder!r} -- not your claim?", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+
+@ops_app.command("status")
+def ops_status(run_id: str) -> None:
+    """Show the current control state of a run."""
+    from cua.escalation import ControlBroker
+
+    row = ControlBroker().get_state(run_id)
+    if row is None:
+        typer.echo(f"{run_id!r}: no record (never escalated, or a different db).")
+        return
+    typer.echo(f"{run_id!r}: state={row.state} holder={row.holder} reason={row.reason!r}")
 
 
 @app.command()
@@ -159,6 +206,13 @@ def replay(
             "touching the saved artifact."
         ),
     ),
+    handoff: bool = typer.Option(
+        True,
+        help="on a stuck step, raise an intervention and wait (same live session) for "
+        "'cua ops claim/release' rather than returning immediately. Disable for a quick, "
+        "non-interactive check of the raw failed/escalated result.",
+    ),
+    handoff_timeout_s: float = typer.Option(120, help="give up waiting for an operator after this long."),
 ) -> None:
     """Deterministically replay an artifact with input params. Never calls an LLM."""
     import json
@@ -197,10 +251,26 @@ def replay(
 
     policy = load_policy()
     adapter = WebAdapter(headless=False)
+    broker = None
+    if handoff:
+        from cua.escalation import ControlBroker
+
+        broker = ControlBroker()
+        typer.echo(
+            f"(if this run gets stuck: cua ops claim {run_id} , fix it in the browser "
+            f"window, then cua ops release {run_id})"
+        )
     started = time.time()
     try:
         result = run_replay(
-            capability, params, adapter, policy, run_id=run_id, evidence_dir=str(evidence_dir)
+            capability,
+            params,
+            adapter,
+            policy,
+            run_id=run_id,
+            evidence_dir=str(evidence_dir),
+            broker=broker,
+            escalation_max_wait_s=handoff_timeout_s,
         )
     finally:
         adapter.close()

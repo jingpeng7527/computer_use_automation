@@ -25,6 +25,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from cua.escalation import ControlBroker, find_resume_point, raise_intervention
 from cua.safety import Policy, check_allowed, gate, redact_text, redact_value
 from cua.schema import (
     BusinessOutcomeResult,
@@ -80,7 +81,20 @@ def replay(
     *,
     run_id: str,
     evidence_dir: str = "",
+    broker: ControlBroker | None = None,
+    escalation_poll_s: float = 1.0,
+    escalation_max_wait_s: float = 120.0,
 ) -> ReplayResult:
+    """`broker` is optional so every existing caller (and every test) that
+    doesn't pass one keeps the original behaviour: a stuck step returns
+    immediately as "failed" or "escalated". When a broker IS given, a stuck
+    step instead raises a real intervention and BLOCKS -- polling the same
+    broker a separate `cua ops claim/release` invocation writes to -- until
+    an operator releases control back, at which point find_resume_point
+    decides whether to finish or continue from the next step. The browser
+    is never closed and never reopened across this wait: it is the same
+    live session throughout, which is the entire point.
+    """
     started_at = datetime.now(UTC)
     state = _RunState(
         capability=capability,
@@ -99,11 +113,30 @@ def replay(
     if param_error is not None:
         return _finish(state, "failed", failure=param_error)
 
-    try:
-        for step in capability.steps:
+    steps = capability.steps
+    i = 0
+    while i < len(steps):
+        step = steps[i]
+        try:
             _run_step(state, step)
-    except _Stop as stop:
-        return stop.result
+        except _Stop as stop:
+            if broker is None or stop.result.status not in ("failed", "escalated"):
+                return stop.result
+            outcome, redacted_outputs = _escalate_and_wait(
+                state,
+                step,
+                stop.result,
+                broker,
+                poll_s=escalation_poll_s,
+                max_wait_s=escalation_max_wait_s,
+            )
+            if outcome == "success":
+                return _finish(state, "success", outputs=redacted_outputs, redactions=[])
+            if outcome == "resume_next":
+                i += 1
+                continue
+            return stop.result  # gave up: return the original, unresolved escalation/failure
+        i += 1
 
     location = state.adapter.location()
     snapshot = state.adapter.observe()
@@ -428,6 +461,65 @@ def _stop_escalated(state: _RunState, step: Step, *, reason: str) -> None:
             ),
         )
     )
+
+
+def _escalate_and_wait(
+    state: _RunState,
+    step: Step,
+    stop_result: ReplayResult,
+    broker: ControlBroker,
+    *,
+    poll_s: float,
+    max_wait_s: float,
+) -> tuple[str, dict[str, str]]:
+    """Raises the intervention, then blocks -- polling the SAME broker a
+    separate `cua ops claim/release` invocation writes to -- until control
+    comes back as RESUMING, or `max_wait_s` elapses. The adapter/browser is
+    never touched here except to observe: whatever fix happens, happens on
+    the live session directly, outside this function. Returns one of
+    ("success", outputs), ("resume_next", {}), ("give_up", {})."""
+    if stop_result.failure is not None:
+        reason, expected, observed = (
+            stop_result.failure.kind,
+            stop_result.failure.expected,
+            stop_result.failure.observed,
+        )
+    else:
+        assert stop_result.escalation is not None
+        reason, expected, observed = stop_result.escalation.reason, "human authorisation required", ""
+
+    raise_intervention(
+        broker=broker,
+        run_id=state.run_id,
+        capability_id=state.capability.capability_id,
+        goal=state.capability.provenance.goal,
+        step_id=step.id,
+        reason=reason,
+        expected=expected,
+        observed=observed,
+        evidence_dir=state.evidence_dir,
+        policy=state.policy,
+    )
+
+    waited = 0.0
+    while waited < max_wait_s:
+        row = broker.get_state(state.run_id)
+        if row is not None and row.state == "RESUMING":
+            resume_point = find_resume_point(state.capability, step, state.adapter)
+            broker.mark_resumed(state.run_id)
+            if resume_point == "success":
+                # 系统设计 sec 5.5: the operator finished the work by hand --
+                # report whatever outputs were captured before the stop, and
+                # run nothing further (partially completed work is often not
+                # idempotent).
+                outputs, _ = _redact_outputs(state, state.outputs)
+                return "success", outputs
+            if resume_point == "step":
+                return "resume_next", {}
+            return "give_up", {}  # neither candidate held -- a second escalation, not a guess
+        time.sleep(poll_s)
+        waited += poll_s
+    return "give_up", {}
 
 
 def _finish(state: _RunState, status: str, **payload) -> ReplayResult:

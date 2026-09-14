@@ -10,7 +10,14 @@ runner = CliRunner()
 def test_cli_help_lists_commands() -> None:
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    for cmd in ("serve-target", "operator", "discover", "replay", "catalog"):
+    for cmd in ("serve-target", "discover", "harden", "replay", "ops", "catalog"):
+        assert cmd in result.output
+
+
+def test_ops_subcommands_exist() -> None:
+    result = runner.invoke(app, ["ops", "--help"])
+    assert result.exit_code == 0
+    for cmd in ("claim", "release", "status"):
         assert cmd in result.output
 
 

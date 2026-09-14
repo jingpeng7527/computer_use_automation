@@ -1,0 +1,12 @@
+{
+  "intervention_id": "demo-handoff-1789419467-intervention",
+  "run_id": "demo-handoff-1789419467",
+  "capability_id": "acme_core.lookup_savings_balance",
+  "goal": "look up member {{input.member_id}} and read their current savings balance",
+  "step_id": "s0",
+  "reason": "checkpoint_failed",
+  "expected": "reached a page headed 'Member Servicing Console'",
+  "observed": "at http://127.0.0.1:8800/members/search?inject=500",
+  "session_handle": "demo-handoff-1789419467",
+  "raised_at": 1789419470.322199
+}
