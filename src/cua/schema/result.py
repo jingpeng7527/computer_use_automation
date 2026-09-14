@@ -33,6 +33,7 @@ FailureKind = Literal[
     "policy_blocked",  # the action was outside the allowlist, or IRREVERSIBLE and refused
     "recovery_exhausted",  # a runtime_match retried up to max_retries and gave up
     "param_invalid",  # an input failed ParamSpec.pattern before replay started
+    "bounds_exceeded",  # the executor's own step-count or wall-clock ceiling was hit
 ]
 
 

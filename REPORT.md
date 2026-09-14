@@ -326,7 +326,7 @@ with non-incidents and bury the real ones. Concretely, three result shapes:
   "failure": { "step_id": "s0", "kind": "checkpoint_failed",
     "expected": "reached a page headed 'Member Servicing Console'",
     "observed": "at http://127.0.0.1:8800/members/search?inject=500",
-    "screenshot_ref": "evidence/replay-20260914224802/s0-failure.png" } }
+    "screenshot_ref": "evidence/replay-20260914233903/s0-failure.png" } }
 ```
 
 (field names and casing above are the actual `ReplayResult`/`FailureDetail`/`BusinessOutcomeResult`
@@ -720,12 +720,19 @@ file in that tree:
 
 | Run | Scenario | Result |
 |---|---|---|
-| `discovery-20260914081535` | live Gemini-driven discovery against the portal, member `12345` | emits `acme_core.lookup_savings_balance` v1 |
-| `replay-20260914224748` | same capability (hardened to v2), a valid member id | `SUCCESS`, typed `Money` output |
-| `replay-20260914224757` | same capability, an id with no record | `BUSINESS_OUTCOME / MEMBER_NOT_FOUND` |
-| `replay-20260914224802` | injected 500 on the entry page | `FAILURE`, with a captured screenshot |
-| `demo-handoff-1789426299` | the same injected-500 fault, escalated instead of just failed | `FAILURE` -> operator claims, fixes, releases -> `SUCCESS` on resume |
+| `discovery-20260914233735` | live discovery against the portal, member `12345` (Gemini's daily free-tier quota was exhausted at run time, so `FallbackProvider` fell through to Groq -- honestly recorded in `run_meta.json`, not silently credited to the configured primary) | emits `acme_core.lookup_savings_balance` v1 |
+| `replay-20260914233813` | same capability, a valid member id | `SUCCESS`, typed `Money` output |
+| `replay-20260914233851` | same capability (hardened to v2), an id with no record | `BUSINESS_OUTCOME / MEMBER_NOT_FOUND` |
+| `replay-20260914233903` | injected 500 on the entry page | `FAILURE`, with a captured screenshot |
+| `demo-handoff-1789429153` | the same injected-500 fault, escalated instead of just failed | `FAILURE` -> operator claims, fixes, releases -> `SUCCESS` on resume |
 
-`demo-handoff-1789426299` is the one worth reading: it exercises checkpoint failure,
+`demo-handoff-1789429153` is the one worth reading: it exercises checkpoint failure,
 classification, evidence capture, the control-transfer state machine and checkpoint-based resume
 in a single run.
+
+This is the second generation of this evidence. A review of the first caught two real bugs, not
+just wording problems: the compiler could anchor a locator on a dynamic table cell (a results
+row's member name ended up recorded in the artifact), and discovery's own CLI wrote the
+un-templated goal into its evidence even though `compile_capability` correctly templated it into
+the artifact. Both are fixed in `src/cua/agent/compile.py` and `src/cua/cli.py` -- see
+`evidence/README.md` for the specifics -- and every file above was regenerated after the fix.

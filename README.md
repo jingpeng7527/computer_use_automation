@@ -22,6 +22,7 @@ of every committed run and the exact command that produced it.
 | `src/cua/replay/` | Deterministic replay engine + error taxonomy |
 | `src/cua/safety/` | Allowlist, risk tiers, execution bounds, redaction |
 | `src/cua/escalation/` | Stuck detection, SQLite control-transfer broker, `ops` CLI |
+| `docs/schema/` | Generated Pydantic JSON Schema, DOT, and reviewable SVG contract diagrams |
 | `config/policy.yaml` | Allowlist, risk tiers, redaction rules, execution bounds |
 | `artifacts/` | Saved capability artifacts (one JSON file per version) |
 | `evidence/` | Committed evidence from real discovery + replay runs |
@@ -112,4 +113,17 @@ that for yourself.
 ```bash
 .venv/bin/pytest
 .venv/bin/ruff check .
+```
+
+## Schema diagrams
+
+The Pydantic contracts are rendered into version-controlled diagrams under
+[`docs/schema/`](docs/schema/). Solid arrows show typed containment; the separate
+`semantic-references.svg` uses dashed arrows for string IDs and templates that the
+artifact's cross-field validators enforce.
+
+```bash
+brew install graphviz # macOS, once
+.venv/bin/python scripts/render_schema_graph.py
+.venv/bin/python scripts/render_schema_graph.py --check
 ```

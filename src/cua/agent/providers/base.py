@@ -18,6 +18,8 @@ class ToolCall(BaseModel):
 
 
 class LLMProvider(Protocol):
+    model: str
+
     def decide(self, messages: list[dict[str, str]], tools: list[dict[str, Any]]) -> ToolCall: ...
 
 
@@ -30,11 +32,21 @@ class FallbackProvider:
     def __init__(self, primary: LLMProvider, secondary: LLMProvider | None = None) -> None:
         self.primary = primary
         self.secondary = secondary
+        # Which provider actually answered the most recent decide() call --
+        # evidence (run_meta/provenance) reads this per step so it never
+        # claims the configured primary reasoned when a live quota/outage
+        # meant the fallback did the work instead. Set before decide()
+        # returns, so it's always accurate for the call that just happened.
+        self.last_used_model: str = primary.model
 
     def decide(self, messages: list[dict[str, str]], tools: list[dict[str, Any]]) -> ToolCall:
         try:
-            return self.primary.decide(messages, tools)
+            call = self.primary.decide(messages, tools)
+            self.last_used_model = self.primary.model
+            return call
         except Exception:
             if self.secondary is None:
                 raise
-            return self.secondary.decide(messages, tools)
+            call = self.secondary.decide(messages, tools)
+            self.last_used_model = self.secondary.model
+            return call

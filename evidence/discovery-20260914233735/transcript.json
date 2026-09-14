@@ -1,5 +1,5 @@
 {
-  "goal": "look up member 12345 and read their current savings balance",
+  "goal": "look up member {{input.member_id}} and read their current savings balance",
   "target": "http://127.0.0.1:8800/members/search",
   "steps": [
     {
@@ -13,17 +13,17 @@
       "node": null,
       "location_path": "/members/search",
       "result": "ok",
-      "detail": "entry point"
+      "detail": "entry point",
+      "provider_model": null
     },
     {
       "step_index": 0,
       "tool_call": {
         "name": "type",
         "args": {
-          "param_name": "member_id",
           "node_id": "n2",
-          "submit": true,
-          "text": "12345"
+          "param_name": "member_id",
+          "text": "{{input.member_id}}"
         }
       },
       "node": {
@@ -34,10 +34,30 @@
       },
       "location_path": "/members/search",
       "result": "ok",
-      "detail": ""
+      "detail": "",
+      "provider_model": "openai/gpt-oss-120b"
     },
     {
       "step_index": 1,
+      "tool_call": {
+        "name": "click",
+        "args": {
+          "node_id": "n3"
+        }
+      },
+      "node": {
+        "node_id": "n3",
+        "role": "button",
+        "name": "Search",
+        "text": "Search"
+      },
+      "location_path": "/members/search",
+      "result": "ok",
+      "detail": "",
+      "provider_model": "openai/gpt-oss-120b"
+    },
+    {
+      "step_index": 2,
       "tool_call": {
         "name": "click",
         "args": {
@@ -50,12 +70,13 @@
         "name": null,
         "text": "View"
       },
-      "location_path": "/members/12345/results",
+      "location_path": "/members/{{input.member_id}}/results",
       "result": "ok",
-      "detail": ""
+      "detail": "",
+      "provider_model": "openai/gpt-oss-120b"
     },
     {
-      "step_index": 2,
+      "step_index": 3,
       "tool_call": {
         "name": "read",
         "args": {
@@ -69,26 +90,28 @@
         "name": null,
         "text": "$8160.00 USD"
       },
-      "location_path": "/members/12345/detail",
+      "location_path": "/members/{{input.member_id}}/detail",
       "result": "ok",
-      "detail": ""
+      "detail": "",
+      "provider_model": "openai/gpt-oss-120b"
     },
     {
-      "step_index": 3,
+      "step_index": 4,
       "tool_call": {
         "name": "finish",
         "args": {
-          "success": true,
-          "reason": "Successfully retrieved savings balance for member 12345.",
           "outputs": {
             "savings_balance": "$8160.00 USD"
-          }
+          },
+          "reason": "Successfully retrieved member's savings balance.",
+          "success": true
         }
       },
       "node": null,
-      "location_path": "/members/12345/detail",
+      "location_path": "/members/{{input.member_id}}/detail",
       "result": "ok",
-      "detail": "finished"
+      "detail": "finished",
+      "provider_model": "openai/gpt-oss-120b"
     }
   ],
   "outputs": {

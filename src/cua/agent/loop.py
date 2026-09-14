@@ -43,6 +43,12 @@ class StepLog:
     location_path: str
     result: str  # "ok" | "refused" | "error"
     detail: str = ""
+    # Which model actually answered this step -- None for the entry
+    # navigate (step_index=-1), which is the CLI's own action and never
+    # calls decide(). Recorded per step, not once for the whole run, so
+    # evidence stays honest if the primary fails partway through and later
+    # steps fall back to the secondary provider.
+    provider_model: str | None = None
 
 
 @dataclass
@@ -98,11 +104,16 @@ def run_discovery(
     ]
 
     # The entry point is the operator's own CLI argument, not a model
-    # decision -- it doesn't go through the allowlist gate that every
-    # subsequent, model-chosen action does. It still has to be LOGGED as a
-    # real step, though: replay starts from a blank page, so if this
+    # decision, but it is still a system-boundary input -- a typo or a
+    # malicious --target is exactly what the allowlist exists to catch, and
+    # "it came from the CLI, not the model" is not a reason to skip the same
+    # gate every subsequent navigation goes through. It still has to be
+    # LOGGED as a real step: replay starts from a blank page, so if this
     # navigation isn't in the compiled artifact, step one has nothing to
     # resolve against.
+    entry_allow = check_allowed("navigate", policy, destination=base_url)
+    if not entry_allow.allowed:
+        raise ValueError(f"--target {base_url!r} is refused: {entry_allow.reason}")
     adapter.act(Navigate(url_template=""), value=base_url)
     transcript.steps.append(
         StepLog(
@@ -129,6 +140,10 @@ def run_discovery(
 
         messages.append({"role": "user", "content": observation})
         call = provider.decide(messages, TOOLS)
+        # Which model actually answered -- FallbackProvider updates this
+        # every call, so evidence stays honest about a mid-run fallback
+        # rather than crediting the configured primary for every step.
+        used_model = getattr(provider, "last_used_model", model_name)
         messages.append({"role": "assistant", "content": f"Called {call.name}({call.args})"})
 
         if call.name == "finish":
@@ -137,7 +152,7 @@ def run_discovery(
             outputs = call.args.get("outputs") or {}
             transcript.outputs.update({k: str(v) for k, v in outputs.items()})
             transcript.steps.append(
-                StepLog(step_index, call, None, snapshot, location.path, "ok", "finished")
+                StepLog(step_index, call, None, snapshot, location.path, "ok", "finished", used_model)
             )
             return transcript
 
@@ -150,7 +165,9 @@ def run_discovery(
         allow = check_allowed(call.name, policy, current_location=location, destination=destination)
         if not allow.allowed:
             transcript.steps.append(
-                StepLog(step_index, call, node, snapshot, location.path, "refused", allow.reason)
+                StepLog(
+                    step_index, call, node, snapshot, location.path, "refused", allow.reason, used_model
+                )
             )
             messages.append(
                 {"role": "user", "content": f"Refused: {allow.reason}. Choose a different action."}
@@ -160,7 +177,9 @@ def run_discovery(
         risk = gate(call.name, policy, resolution=resolution, destination=destination)
         if not risk.allowed_unattended:
             transcript.steps.append(
-                StepLog(step_index, call, node, snapshot, location.path, "refused", risk.reason)
+                StepLog(
+                    step_index, call, node, snapshot, location.path, "refused", risk.reason, used_model
+                )
             )
             messages.append(
                 {
@@ -183,6 +202,7 @@ def run_discovery(
                     location.path,
                     "error",
                     f"no visible element with node_id={call.args.get('node_id')!r}",
+                    used_model,
                 )
             )
             messages.append(
@@ -212,10 +232,12 @@ def run_discovery(
                 transcript.outputs[call.args["output_name"]] = value or ""
             else:
                 raise ValueError(f"model called an unknown tool: {call.name!r}")
-            transcript.steps.append(StepLog(step_index, call, node, snapshot, location.path, "ok"))
+            transcript.steps.append(
+                StepLog(step_index, call, node, snapshot, location.path, "ok", "", used_model)
+            )
         except Exception as exc:  # noqa: BLE001 -- surfaced to the model, not swallowed
             transcript.steps.append(
-                StepLog(step_index, call, node, snapshot, location.path, "error", str(exc))
+                StepLog(step_index, call, node, snapshot, location.path, "error", str(exc), used_model)
             )
             messages.append({"role": "user", "content": f"Action failed: {exc}. Try something else."})
 

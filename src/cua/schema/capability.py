@@ -234,16 +234,21 @@ class Capability(BaseModel):
         scanner (that's safety/redaction.py, built in a later phase). The
         fix at the call site is to store a templated goal, e.g. "look up
         member {{input.member_id}}...", the same reference-by-name
-        discipline used everywhere else in this file."""
-        tokens = re.findall(r"\S+", self.provenance.goal)
-        for param in self.inputs:
-            if param.sensitivity == "none" or not param.pattern:
-                continue
-            if any(re.fullmatch(param.pattern, token) for token in tokens):
-                raise ValueError(
-                    f"provenance.goal appears to contain a literal value for "
-                    f"sensitive input {param.name!r} (matches pattern "
-                    f"{param.pattern!r}); store a templated goal instead, "
-                    f"e.g. using {{{{input.{param.name}}}}}"
-                )
+        discipline used everywhere else in this file.
+
+        Checked against both `provenance.goal` and `summary` -- a compiler
+        that templates one and forgets the other has fixed nothing, since
+        `summary` is the field a calling agent actually reads."""
+        for field_name, text in (("provenance.goal", self.provenance.goal), ("summary", self.summary)):
+            tokens = re.findall(r"\S+", text)
+            for param in self.inputs:
+                if param.sensitivity == "none" or not param.pattern:
+                    continue
+                if any(re.fullmatch(param.pattern, token) for token in tokens):
+                    raise ValueError(
+                        f"{field_name} appears to contain a literal value for "
+                        f"sensitive input {param.name!r} (matches pattern "
+                        f"{param.pattern!r}); store a templated value instead, "
+                        f"e.g. using {{{{input.{param.name}}}}}"
+                    )
         return self

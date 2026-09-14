@@ -51,6 +51,13 @@ class RiskDecision:
     tier: RiskTier
     allowed_unattended: bool
     reason: str = ""
+    # None when allowed_unattended; otherwise which of the two IRREVERSIBLE
+    # postures produced the refusal. The caller (replay's executor) branches
+    # on this, not on `reason` text, to route "refuse" to a hard FAILURE and
+    # "require_confirm" to escalation -- conflating the two would mean a
+    # policy of "refuse" still asks a human to authorise the very action the
+    # policy says must never run unattended OR by hand-off.
+    escalate: bool = False
 
 
 def gate(
@@ -64,5 +71,7 @@ def gate(
     if tier != "IRREVERSIBLE":
         return RiskDecision(tier, True)
     if policy.irreversible_policy == "require_confirm":
-        return RiskDecision(tier, False, "irreversible action requires human authorisation")
-    return RiskDecision(tier, False, "irreversible actions are refused by policy")
+        return RiskDecision(
+            tier, False, "irreversible action requires human authorisation", escalate=True
+        )
+    return RiskDecision(tier, False, "irreversible actions are refused by policy", escalate=False)

@@ -58,3 +58,22 @@ def test_change_credit_limit_is_irreversible_and_refused() -> None:
     decision = gate("click", _policy(), resolution=_resolution_for("Change Credit Limit"))
     assert decision.tier == "IRREVERSIBLE"
     assert not decision.allowed_unattended
+
+
+def test_irreversible_refuse_does_not_escalate() -> None:
+    """policy.yaml ships `irreversible_policy: refuse` -- the executor must
+    turn this into a hard, non-escalating failure. Escalating anyway would
+    mean "refuse" quietly behaves like "require_confirm", asking a human to
+    authorise the exact action the policy says must never run at all."""
+    policy = _policy()
+    assert policy.irreversible_policy == "refuse"
+    decision = gate("click", policy, resolution=_resolution_for("Change Credit Limit"))
+    assert not decision.allowed_unattended
+    assert not decision.escalate
+
+
+def test_irreversible_require_confirm_does_escalate() -> None:
+    policy = _policy().model_copy(update={"irreversible_policy": "require_confirm"})
+    decision = gate("click", policy, resolution=_resolution_for("Change Credit Limit"))
+    assert not decision.allowed_unattended
+    assert decision.escalate

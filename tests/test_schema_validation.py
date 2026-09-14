@@ -287,6 +287,18 @@ def test_goal_cannot_contain_a_literal_sensitive_value() -> None:
         Capability.model_validate(bad)
 
 
+def test_summary_cannot_contain_a_literal_sensitive_value_either() -> None:
+    """Regression: a compiler that templates provenance.goal but writes the
+    raw literal into `summary` has fixed nothing, since summary is the
+    field a calling agent actually reads to decide whether to invoke this
+    capability."""
+    cap = _lookup_savings_balance()
+    bad = _as_dict(cap)
+    bad["summary"] = "look up member 12345 and read their current savings balance"
+    with pytest.raises(ValidationError):
+        Capability.model_validate(bad)
+
+
 def test_replay_result_enforces_one_payload_per_status() -> None:
     now = datetime.now(UTC)
     ok = ReplayResult(

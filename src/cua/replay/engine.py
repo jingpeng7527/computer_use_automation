@@ -22,11 +22,19 @@ from __future__ import annotations
 
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from cua.escalation import ControlBroker, find_resume_point, raise_intervention
-from cua.safety import Policy, check_allowed, gate, redact_text, redact_value
+from cua.safety import (
+    BoundExceeded,
+    ExecutionGuard,
+    Policy,
+    check_allowed,
+    gate,
+    redact_text,
+    redact_value,
+)
 from cua.schema import (
     BusinessOutcomeResult,
     Capability,
@@ -72,7 +80,9 @@ class _RunState:
     ctx: dict[str, str]
     outputs: dict[str, str]
     step_results: list[StepResult]
+    guard: ExecutionGuard
     recovery_used: int = 0
+    match_retry_counts: dict[str, int] = field(default_factory=dict)
 
 
 def replay(
@@ -109,6 +119,7 @@ def replay(
         ctx={},
         outputs={},
         step_results=[],
+        guard=ExecutionGuard(policy),
     )
 
     param_error = _validate_params(capability, params)
@@ -279,6 +290,19 @@ def _run_step(state: _RunState, step: Step) -> None:
     capability = state.capability
     start = time.monotonic()
 
+    # Bounds are the executor's to enforce, never the artifact's -- an
+    # artifact with a very long step list, or a recoverable condition that
+    # keeps recurring, must still terminate. This also covers the recursive
+    # retry call at the bottom of _apply_match: each retry is another call
+    # here, so it counts against the same step/wall-clock ceiling discovery
+    # already enforces on itself.
+    try:
+        state.guard.check_step()
+    except BoundExceeded as exc:
+        _stop_failed(
+            state, step, kind="bounds_exceeded", expected="within execution bounds", observed=exc.reason
+        )
+
     resolution = _resolve_target(state, step)
     target_missing = step.target is not None and (resolution is None or not resolution.resolved)
 
@@ -303,7 +327,16 @@ def _run_step(state: _RunState, step: Step) -> None:
 
         risk = gate(step.action.type, state.policy, resolution=resolution, destination=destination)
         if not risk.allowed_unattended:
-            _stop_escalated(state, step, reason=risk.reason)
+            if risk.escalate:
+                _stop_escalated(state, step, reason=risk.reason)
+            else:
+                # irreversible_policy: refuse means never -- not "ask a human
+                # to authorise it anyway". That's what require_confirm is
+                # for. A hard, non-escalating failure is the only response
+                # that actually matches "refuse".
+                _stop_failed(
+                    state, step, kind="policy_blocked", expected="not IRREVERSIBLE", observed=risk.reason
+                )
 
         try:
             _act(state, step, resolution)
@@ -311,7 +344,12 @@ def _run_step(state: _RunState, step: Step) -> None:
             _stop_failed(state, step, kind="app_error", expected="action to succeed", observed=str(exc))
 
         if step.wait is not None:
-            wait_ok = state.adapter.wait_for(step.wait.until, step.wait.timeout_ms)
+            # The artifact's own timeout is a ceiling the executor enforces,
+            # not a number it trusts outright -- an artifact author (or a
+            # discovery run) declaring an unreasonably long wait must not be
+            # able to stall a replay past what policy allows.
+            timeout_ms = min(step.wait.timeout_ms, state.policy.execution_bounds.per_wait_timeout_ms)
+            wait_ok = state.adapter.wait_for(step.wait.until, timeout_ms)
 
     # ONE snapshot; the terminal-match check, the checkpoint, and (if that
     # fails) the remaining-match fallback all read this same observation.
@@ -421,7 +459,23 @@ def _apply_match(
         )
         return
 
-    # recoverable
+    # recoverable -- bounded two ways, per REPORT.md sec 3: a per-matcher
+    # max_retries (this condition specifically keeps recurring and isn't
+    # getting better) AND the capability's aggregate recovery_budget.per_run
+    # (too many DIFFERENT conditions fired this run). Checking only the
+    # aggregate would let one flaky matcher retry forever up to that shared
+    # ceiling, which is not what a per-matcher budget on the schema promises.
+    match_retries = state.match_retry_counts.get(match.id, 0)
+    if match_retries >= match.max_retries:
+        _stop_failed(
+            state,
+            step,
+            kind="recovery_exhausted",
+            expected=f"{match.id!r} within its max_retries ({match.max_retries})",
+            observed=match.id,
+        )
+        return
+
     budget = state.capability.recovery_budget
     if state.recovery_used >= budget.per_run:
         _stop_failed(
@@ -433,6 +487,7 @@ def _apply_match(
         return
 
     state.recovery_used += 1
+    state.match_retry_counts[match.id] = match_retries + 1
     if match.recovery.do == "dismiss_dialog" and match.recovery.target_role:
 
         dismiss_target = Target(

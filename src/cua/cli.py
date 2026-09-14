@@ -108,9 +108,11 @@ def discover(
         GeminiProvider,
         GroqProvider,
         compile_capability,
+        extract_param_literals,
         run_discovery,
+        template_literals,
     )
-    from cua.safety import load_policy
+    from cua.safety import load_policy, redact_text
     from cua.schema import AppProfile, ArtifactStore
     from cua.surface import WebAdapter
 
@@ -132,27 +134,75 @@ def discover(
         transcript = run_discovery(
             goal, target, adapter, provider, policy, model_name=model_name, max_steps=max_steps
         )
+    except ValueError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
     finally:
         adapter.close()
     duration_s = time.time() - started_at
 
+    # The model that actually reasoned, not just the one configured as
+    # primary: if Gemini erred/rate-limited partway through and Groq picked
+    # up the rest (FallbackProvider.last_used_model, captured per step),
+    # evidence has to say so -- crediting the primary for a run it didn't
+    # fully do would misreport the one thing this assignment can't fake.
+    used_models: list[str] = []
+    for s in transcript.steps:
+        if s.provider_model and s.provider_model not in used_models:
+            used_models.append(s.provider_model)
+    actual_model = " -> ".join(used_models) if used_models else model_name
+    transcript.model = actual_model  # compile_capability reads this into provenance.model
+
+    # Redaction at the persistence boundary applies here too, not just to
+    # replay's evidence: transcript.json / run_meta.json are the FIRST place
+    # a discovery-time literal (a typed member id, a name echoed back on a
+    # results page, an id embedded in a URL path) would otherwise get
+    # written down. Two passes, matching safety/redaction.py's own two
+    # mechanisms -- structural first (template out exactly the literals we
+    # know are input values, the same way compile_capability templates the
+    # goal), then a regex fallback for anything else with a recognisable
+    # sensitive shape.
+    param_literals = extract_param_literals(transcript.steps)
+
+    def _sanitize(text: str | None) -> str | None:
+        if text is None:
+            return None
+        return redact_text(template_literals(text, param_literals), policy)
+
+    goal_evidence = _sanitize(goal)
     steps_evidence = [
         {
             "step_index": s.step_index,
-            "tool_call": {"name": s.tool_call.name, "args": s.tool_call.args},
+            "tool_call": {
+                "name": s.tool_call.name,
+                "args": {
+                    k: (_sanitize(v) if isinstance(v, str) else v) for k, v in s.tool_call.args.items()
+                },
+            },
             "node": (
-                {"node_id": s.node.node_id, "role": s.node.role, "name": s.node.name, "text": s.node.text}
+                {
+                    "node_id": s.node.node_id,
+                    "role": s.node.role,
+                    "name": _sanitize(s.node.name),
+                    "text": _sanitize(s.node.text),
+                }
                 if s.node
                 else None
             ),
-            "location_path": s.location_path,
+            "location_path": _sanitize(s.location_path),
             "result": s.result,
-            "detail": s.detail,
+            "detail": _sanitize(s.detail),
+            "provider_model": s.provider_model,
         }
         for s in transcript.steps
     ]
+    # Declared outputs are the capability's actual answer, not an incidental
+    # leak -- REPORT.md sec 6 is explicit that these are not redacted here
+    # either; a hardening pass is what later tags a specific output as
+    # sensitive, and only then does replay mask it (engine.py's
+    # _redact_outputs). Discovery evidence reports outputs the same way.
     transcript_json = json.dumps(
-        {"goal": goal, "target": target, "steps": steps_evidence, "outputs": transcript.outputs},
+        {"goal": goal_evidence, "target": target, "steps": steps_evidence, "outputs": transcript.outputs},
         indent=2,
     )
     (evidence_dir / "transcript.json").write_text(transcript_json)
@@ -160,11 +210,11 @@ def discover(
 
     run_meta = {
         "run_id": run_id,
-        "goal": goal,
+        "goal": goal_evidence,
         "target": target,
-        "model": model_name,
+        "model": actual_model,
         "success": transcript.success,
-        "reason": transcript.reason,
+        "reason": _sanitize(transcript.reason),
         "outputs": transcript.outputs,
         "step_count": len(transcript.steps),
         "duration_s": round(duration_s, 2),

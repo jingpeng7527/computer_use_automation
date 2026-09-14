@@ -18,7 +18,7 @@ from .base import ToolCall
 
 class GroqProvider:
     def __init__(self, model: str | None = None, api_key: str | None = None) -> None:
-        self.model = model or os.environ.get("CUA_GROQ_MODEL", "llama-3.3-70b-versatile")
+        self.model = model or os.environ.get("CUA_GROQ_MODEL", "openai/gpt-oss-120b")
         key = api_key or os.environ.get("GROQ_API_KEY")
         if not key:
             raise RuntimeError("GROQ_API_KEY is not set")

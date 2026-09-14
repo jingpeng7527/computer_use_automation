@@ -1,7 +1,7 @@
 {
   "capability_id": "acme_core.lookup_savings_balance",
-  "capability_version": 2,
-  "run_id": "demo-handoff-1789426299",
+  "capability_version": 1,
+  "run_id": "replay-20260914233813",
   "status": "success",
   "outputs": {
     "savings_balance": {
@@ -19,39 +19,48 @@
       "status": "ok",
       "locator_layer_hit": null,
       "recoveries_applied": [],
-      "duration_ms": 82,
+      "duration_ms": 233,
       "extracted": {}
     },
     {
       "step_id": "s1",
-      "intent": "type {{input.member_id}} and submit",
+      "intent": "type {{input.member_id}}",
       "status": "ok",
       "locator_layer_hit": 2,
       "recoveries_applied": [],
-      "duration_ms": 191,
+      "duration_ms": 85,
       "extracted": {}
     },
     {
       "step_id": "s2",
-      "intent": "click 'View'",
+      "intent": "click 'Search'",
       "status": "ok",
-      "locator_layer_hit": 2,
+      "locator_layer_hit": 1,
       "recoveries_applied": [],
-      "duration_ms": 145,
+      "duration_ms": 150,
       "extracted": {}
     },
     {
       "step_id": "s3",
+      "intent": "click 'View'",
+      "status": "ok",
+      "locator_layer_hit": 3,
+      "recoveries_applied": [],
+      "duration_ms": 101,
+      "extracted": {}
+    },
+    {
+      "step_id": "s4",
       "intent": "read savings_balance",
       "status": "ok",
       "locator_layer_hit": 2,
       "recoveries_applied": [],
-      "duration_ms": 29,
+      "duration_ms": 16,
       "extracted": {}
     }
   ],
-  "started_at": "2026-09-14T22:51:44.609981Z",
-  "ended_at": "2026-09-14T22:51:45.062141Z",
-  "evidence_dir": "evidence/demo-handoff-1789426299",
+  "started_at": "2026-09-14T23:38:17.169267Z",
+  "ended_at": "2026-09-14T23:38:17.759656Z",
+  "evidence_dir": "evidence/replay-20260914233813",
   "redactions": []
 }

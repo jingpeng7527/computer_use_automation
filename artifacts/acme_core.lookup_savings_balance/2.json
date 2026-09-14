@@ -4,7 +4,7 @@
   "version": 2,
   "status": "draft",
   "title": "Lookup Savings Balance",
-  "summary": "look up member 12345 and read their current savings balance",
+  "summary": "look up member {{input.member_id}} and read their current savings balance",
   "app_profile": {
     "product": "acme_core",
     "version": "2024.1"
@@ -25,7 +25,7 @@
       "name": "savings_balance",
       "type": "money",
       "description": "read from the page during discovery (savings_balance)",
-      "source_step_id": "s3",
+      "source_step_id": "s4",
       "sensitivity": "none"
     }
   ],
@@ -58,11 +58,11 @@
     },
     {
       "id": "s1",
-      "intent": "type {{input.member_id}} and submit",
+      "intent": "type {{input.member_id}}",
       "action": {
         "type": "type",
         "value_from": "{{input.member_id}}",
-        "submit": true,
+        "submit": false,
         "clear_first": true
       },
       "risk_level": "REVERSIBLE_WRITE",
@@ -83,7 +83,7 @@
     },
     {
       "id": "s2",
-      "intent": "click 'View'",
+      "intent": "click 'Search'",
       "action": {
         "type": "click"
       },
@@ -91,13 +91,37 @@
       "target": {
         "strategies": [
           {
-            "rationale": "no accessible name at discovery time; anchored on 'Dolores Ibarra'",
-            "layer": 2,
-            "type": "label_anchor",
-            "label": "Dolores Ibarra",
-            "relation": "same_row_input",
-            "nth": 0
-          },
+            "rationale": "has a real accessible name",
+            "layer": 1,
+            "type": "role_name",
+            "role": "button",
+            "name": "Search"
+          }
+        ]
+      },
+      "wait": null,
+      "checkpoint": {
+        "description": "reached a page headed 'Search Results'",
+        "all_of": [
+          {
+            "kind": "role_name",
+            "role": "heading",
+            "name": "Search Results",
+            "visible": true
+          }
+        ],
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "s3",
+      "intent": "click 'View'",
+      "action": {
+        "type": "click"
+      },
+      "risk_level": "REVERSIBLE_WRITE",
+      "target": {
+        "strategies": [
           {
             "rationale": "stable, human-authored class name observed at discovery time",
             "layer": 3,
@@ -121,7 +145,7 @@
       }
     },
     {
-      "id": "s3",
+      "id": "s4",
       "intent": "read savings_balance",
       "action": {
         "type": "read",
@@ -182,11 +206,11 @@
     "timeout_ms": 10000
   },
   "provenance": {
-    "discovered_at": "2026-09-14T08:15:59.433399Z",
-    "model": "gemini-3.6-flash",
+    "discovered_at": "2026-09-14T23:37:49.794096Z",
+    "model": "openai/gpt-oss-120b",
     "goal": "look up member {{input.member_id}} and read their current savings balance",
-    "discovery_run_id": "discovery-20260914081535",
-    "transcript_sha256": "b0b7bf8809cd8571537ac89dd12bf459dd062a67b887be015e201b8ea868befb",
+    "discovery_run_id": "discovery-20260914233735",
+    "transcript_sha256": "d8800c8487ba5720d8f4c602f945074287f032645e5e9962c1cd8b7a4b526201",
     "human_edited": false
   }
 }

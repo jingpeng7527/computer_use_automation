@@ -52,16 +52,28 @@ _MONEY_RE = re.compile(r"^\$[\d,]+\.\d{2}\s+[A-Z]{3}$")
 def _nearest_label_to_the_left(
     node: InteractiveNode, snapshot: SurfaceSnapshot
 ) -> InteractiveNode | None:
+    """A label anchor is only trustworthy when it's the row's ONE static
+    descriptive text -- the label/value-pair shape a form or a detail table
+    uses ("Member Number:" next to its input; "Savings Balance" next to its
+    value). A results-table row has several sibling data cells (a member
+    id, a member's name, an action control): "nearest text to the left" in
+    that shape isn't a label at all, it's whichever record field happened
+    to sit next to this control -- which is exactly how a real member's
+    name ended up committed into a versioned, git-tracked artifact before
+    this guard existed. Requiring the row to contain exactly one candidate
+    turns that ambiguity into "don't anchor here", not "guess"; the caller
+    falls through to a css/bbox strategy instead, which is what a stable,
+    per-record-independent locator should be built from in that shape."""
     top, bottom = node.bbox.y, node.bbox.y + node.bbox.h
-    candidates = [
+    same_row = [
         n
         for n in snapshot
         if n is not node and not n.interactive and n.text and n.bbox.vertical_overlap(top, bottom)
-        and n.bbox.x < node.bbox.x
     ]
-    if not candidates:
+    if len(same_row) != 1:
         return None
-    return max(candidates, key=lambda n: n.bbox.x)  # closest one to the left
+    candidate = same_row[0]
+    return candidate if candidate.bbox.x < node.bbox.x else None
 
 
 def _strategies_for(node: InteractiveNode, snapshot: SurfaceSnapshot) -> Target:
@@ -117,6 +129,32 @@ def _classify_output_type(value: str) -> ParamType:
     return "money" if _MONEY_RE.match(value.strip()) else "string"
 
 
+def extract_param_literals(steps: list[StepLog]) -> dict[str, str]:
+    """Every literal a `type` tool call carried at discovery time, keyed by
+    the param_name it's recorded under -- the same mapping used to template
+    the goal before it reaches Provenance/summary. Exported so evidence
+    written straight from the transcript (cli.py's discover command sees
+    every step, not just the ones compile_capability keeps) can redact
+    those same literals identically, rather than each caller growing its
+    own copy of this logic."""
+    literals: dict[str, str] = {}
+    for log in steps:
+        args = log.tool_call.args
+        if log.tool_call.name == "type" and "param_name" in args and "text" in args:
+            literals[args["param_name"]] = args["text"]
+    return literals
+
+
+def template_literals(text: str, literals: dict[str, str]) -> str:
+    """Replaces every occurrence of a discovery-time literal with the
+    `{{input.<name>}}` reference it's bound to -- structural redaction
+    (absence by construction) applied to free text, not just to
+    Step.action.value_from."""
+    for name, literal in literals.items():
+        text = text.replace(literal, f"{{{{input.{name}}}}}")
+    return text
+
+
 def compile_capability(
     transcript: DiscoveryTranscript,
     *,
@@ -137,7 +175,7 @@ def compile_capability(
     steps: list[Step] = []
     inputs: list[ParamSpec] = []
     outputs: list[OutputSpec] = []
-    param_literals: dict[str, str] = {}  # param_name -> the literal typed at discovery time
+    param_literals = extract_param_literals(real_steps)  # param_name -> literal typed at discovery time
 
     for i, log in enumerate(real_steps):
         step_id = f"s{i}"
@@ -170,7 +208,6 @@ def compile_capability(
         elif name == "type":
             param_name = args["param_name"]
             literal = args["text"]
-            param_literals[param_name] = literal
             pattern = f"^[0-9]{{{len(literal)}}}$" if literal.isdigit() else None
             inputs.append(
                 ParamSpec(
@@ -227,16 +264,14 @@ def compile_capability(
             all_of=[UrlMatches(pattern=f"*{real_steps[-1].location_path}")],
         )
 
-    templated_goal = transcript.goal
-    for param_name, literal in param_literals.items():
-        templated_goal = templated_goal.replace(literal, f"{{{{input.{param_name}}}}}")
+    templated_goal = template_literals(transcript.goal, param_literals)
 
     return Capability(
         capability_id=capability_id,
         version=1,
         status="draft",
         title=capability_id.rsplit(".", 1)[-1].replace("_", " ").title(),
-        summary=transcript.goal,
+        summary=templated_goal,
         app_profile=app_profile,
         inputs=inputs,
         outputs=outputs,
