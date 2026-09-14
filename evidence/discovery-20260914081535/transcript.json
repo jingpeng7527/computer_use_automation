@@ -3,14 +3,27 @@
   "target": "http://127.0.0.1:8800/members/search",
   "steps": [
     {
+      "step_index": -1,
+      "tool_call": {
+        "name": "navigate",
+        "args": {
+          "url": "http://127.0.0.1:8800/members/search"
+        }
+      },
+      "node": null,
+      "location_path": "/members/search",
+      "result": "ok",
+      "detail": "entry point"
+    },
+    {
       "step_index": 0,
       "tool_call": {
         "name": "type",
         "args": {
-          "text": "12345",
-          "submit": false,
           "param_name": "member_id",
-          "node_id": "n2"
+          "node_id": "n2",
+          "submit": true,
+          "text": "12345"
         }
       },
       "node": {
@@ -28,24 +41,6 @@
       "tool_call": {
         "name": "click",
         "args": {
-          "node_id": "n3"
-        }
-      },
-      "node": {
-        "node_id": "n3",
-        "role": "button",
-        "name": "Search",
-        "text": "Search"
-      },
-      "location_path": "/members/search",
-      "result": "ok",
-      "detail": ""
-    },
-    {
-      "step_index": 2,
-      "tool_call": {
-        "name": "click",
-        "args": {
           "node_id": "n5"
         }
       },
@@ -60,12 +55,12 @@
       "detail": ""
     },
     {
-      "step_index": 3,
+      "step_index": 2,
       "tool_call": {
         "name": "read",
         "args": {
-          "output_name": "savings_balance",
-          "node_id": "n6"
+          "node_id": "n6",
+          "output_name": "savings_balance"
         }
       },
       "node": {
@@ -79,12 +74,12 @@
       "detail": ""
     },
     {
-      "step_index": 4,
+      "step_index": 3,
       "tool_call": {
         "name": "finish",
         "args": {
           "success": true,
-          "reason": "Successfully looked up member 12345 and read their current savings balance.",
+          "reason": "Successfully retrieved savings balance for member 12345.",
           "outputs": {
             "savings_balance": "$8160.00 USD"
           }

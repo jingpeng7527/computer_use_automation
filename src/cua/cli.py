@@ -152,7 +152,63 @@ def replay(
     param: list[str] = typer.Option(None, "--param", "-p", help="key=value input param."),
 ) -> None:
     """Deterministically replay an artifact with input params. Never calls an LLM."""
-    raise typer.Exit(code=_not_yet("replay"))
+    import json
+    import time
+    from datetime import UTC, datetime
+    from pathlib import Path
+
+    from cua.replay import replay as run_replay
+    from cua.safety import load_policy
+    from cua.schema import Capability
+    from cua.surface import WebAdapter
+
+    params: dict[str, str] = {}
+    for item in param or []:
+        key, sep, value = item.partition("=")
+        if not sep:
+            typer.secho(f"--param must be key=value, got {item!r}", fg=typer.colors.RED)
+            raise typer.Exit(code=1)
+        params[key] = value
+
+    capability = Capability.model_validate_json(Path(artifact).read_text())
+
+    run_id = f"replay-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}"
+    evidence_dir = Path("evidence") / run_id
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+
+    policy = load_policy()
+    adapter = WebAdapter(headless=False)
+    started = time.time()
+    try:
+        result = run_replay(
+            capability, params, adapter, policy, run_id=run_id, evidence_dir=str(evidence_dir)
+        )
+    finally:
+        adapter.close()
+
+    (evidence_dir / "result.json").write_text(result.model_dump_json(indent=2))
+
+    color = {
+        "success": typer.colors.GREEN,
+        "business_outcome": typer.colors.CYAN,
+        "failed": typer.colors.RED,
+        "escalated": typer.colors.YELLOW,
+    }[result.status]
+    typer.secho(f"status: {result.status}  ({time.time() - started:.2f}s)", fg=color)
+    if result.status == "success":
+        typer.echo(f"outputs: {json.dumps(result.outputs, indent=2)}")
+    elif result.status == "business_outcome":
+        typer.echo(f"code: {result.outcome.code}  outputs: {json.dumps(result.outcome.outputs)}")
+    elif result.status == "failed":
+        typer.echo(
+            f"step {result.failure.step_id!r} ({result.failure.kind}): "
+            f"expected {result.failure.expected!r}, observed {result.failure.observed!r}"
+        )
+    elif result.status == "escalated":
+        typer.echo(f"reason: {result.escalation.reason}")
+    typer.echo(f"evidence written to {evidence_dir}/")
+
+    raise typer.Exit(code=0 if result.status in ("success", "business_outcome") else 1)
 
 
 @app.command()

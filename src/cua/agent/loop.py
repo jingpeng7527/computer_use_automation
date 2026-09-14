@@ -103,8 +103,22 @@ def run_discovery(
 
     # The entry point is the operator's own CLI argument, not a model
     # decision -- it doesn't go through the allowlist gate that every
-    # subsequent, model-chosen action does.
+    # subsequent, model-chosen action does. It still has to be LOGGED as a
+    # real step, though: replay starts from a blank page, so if this
+    # navigation isn't in the compiled artifact, step one has nothing to
+    # resolve against.
     adapter.act(Navigate(url_template=""), value=base_url)
+    transcript.steps.append(
+        StepLog(
+            step_index=-1,
+            tool_call=ToolCall(name="navigate", args={"url": base_url}),
+            node=None,
+            snapshot=adapter.observe(),
+            location_path=adapter.location().path,
+            result="ok",
+            detail="entry point",
+        )
+    )
 
     last_observation: str | None = None
     stale_steps = 0
