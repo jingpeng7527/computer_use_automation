@@ -26,4 +26,5 @@ node_modules/
 # Editor local history
 .history/
 
+# Internal design notes, kept local only
 系统设计.md

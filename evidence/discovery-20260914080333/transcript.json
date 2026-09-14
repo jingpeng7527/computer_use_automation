@@ -1,0 +1,102 @@
+{
+  "goal": "look up member 12345 and read their current savings balance",
+  "target": "http://127.0.0.1:8800/members/search",
+  "steps": [
+    {
+      "step_index": 0,
+      "tool_call": {
+        "name": "type",
+        "args": {
+          "text": "12345",
+          "submit": false,
+          "param_name": "member_id",
+          "node_id": "n2"
+        }
+      },
+      "node": {
+        "node_id": "n2",
+        "role": "textbox",
+        "name": null,
+        "text": ""
+      },
+      "location_path": "/members/search",
+      "result": "ok",
+      "detail": ""
+    },
+    {
+      "step_index": 1,
+      "tool_call": {
+        "name": "click",
+        "args": {
+          "node_id": "n3"
+        }
+      },
+      "node": {
+        "node_id": "n3",
+        "role": "button",
+        "name": "Search",
+        "text": "Search"
+      },
+      "location_path": "/members/search",
+      "result": "ok",
+      "detail": ""
+    },
+    {
+      "step_index": 2,
+      "tool_call": {
+        "name": "click",
+        "args": {
+          "node_id": "n5"
+        }
+      },
+      "node": {
+        "node_id": "n5",
+        "role": null,
+        "name": null,
+        "text": "View"
+      },
+      "location_path": "/members/12345/results",
+      "result": "ok",
+      "detail": ""
+    },
+    {
+      "step_index": 3,
+      "tool_call": {
+        "name": "read",
+        "args": {
+          "output_name": "savings_balance",
+          "node_id": "n6"
+        }
+      },
+      "node": {
+        "node_id": "n6",
+        "role": null,
+        "name": null,
+        "text": "$8160.00 USD"
+      },
+      "location_path": "/members/12345/detail",
+      "result": "ok",
+      "detail": ""
+    },
+    {
+      "step_index": 4,
+      "tool_call": {
+        "name": "finish",
+        "args": {
+          "success": true,
+          "reason": "Successfully looked up member 12345 and read their current savings balance.",
+          "outputs": {
+            "savings_balance": "$8160.00 USD"
+          }
+        }
+      },
+      "node": null,
+      "location_path": "/members/12345/detail",
+      "result": "ok",
+      "detail": "finished"
+    }
+  ],
+  "outputs": {
+    "savings_balance": "$8160.00 USD"
+  }
+}
