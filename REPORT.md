@@ -319,7 +319,8 @@ with non-incidents and bury the real ones. Concretely, three result shapes:
   "outputs": { "savings_balance": { "amount_minor": 816000, "currency": "USD" } } }
 
 { "status": "business_outcome",
-  "outcome": { "code": "MEMBER_NOT_FOUND", "description": "member_not_found", "outputs": {} } }
+  "outcome": { "code": "MEMBER_NOT_FOUND", "description": "s2_business_outcome",
+    "detected_after_step": "s2", "outputs": {} } }
 
 { "status": "failed",
   "failure": { "step_id": "s0", "kind": "checkpoint_failed",
@@ -647,8 +648,12 @@ its own limits.
   field: `member_id=<pii:5 digits>` rather than a hash or an omission, because a log that cannot
   distinguish two runs of the same capability is not debuggable, and Section 3.5 of the brief
   asks for evidence that explains a run. Correlation is carried by the run id, which is not
-  sensitive. Failure screenshots are treated as sensitive artefacts: stored under the run
-  directory, excluded from git, and never inlined into logs.
+  sensitive. Failure screenshots are treated as sensitive artefacts by default: `runs/`, where a
+  normal replay writes its evidence, is gitignored wholesale, and a screenshot is never inlined
+  into a log line, only referenced by path. The handful of screenshots actually committed under
+  `/evidence/` are a deliberate exception for this submission -- they are of the local mock app's
+  own generic 500 page, contain no member data, and are exactly the artefacts Section 3.5 asks to
+  see evidenced rather than described.
 
 Outputs are tagged too, not just inputs. A returned member name is PII on the way out exactly as
 a member id is on the way in.
