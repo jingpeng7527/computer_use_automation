@@ -471,9 +471,12 @@ does not fit a tenant, the run does not crash: it escalates per Section 5, the o
 resolution is captured, and that capture is the raw material for the tenant overlay. Degradation
 produces the fix instead of merely reporting the problem.
 
-Cut from this section: the inheritance resolver and the drift dashboard. What is built is the
-schema, one artifact applied to two variants of the mock app with an overlay, and the layer-hit
-telemetry the dashboard would consume.
+Cut from this section: the inheritance resolver, a second tenant variant of the mock app, and the
+drift dashboard. What is built is the overlay schema (`schema/overlay.py`) -- `replace_target`,
+`insert_after`, `skip`, exactly the three operations argued above -- and the layer-hit telemetry
+the dashboard would consume, which every real replay in `evidence/` already emits per step. The
+resolver that walks a base plus an overlay into a resolved step list, and a second mock-app variant
+to run it against, are not built; see Section 7.
 
 ---
 
@@ -667,7 +670,7 @@ Everything below is a deliberate omission with the seam left in place, not an un
 | Cut | Why | What exists |
 |---|---|---|
 | Desktop and vision adapters | Brief does not ask for them; the argument is the seam, not a second implementation | `SurfaceAdapter` protocol; nothing above it is browser-specific |
-| Overlay inheritance resolver | Resolution is mechanical once the schema is right; the schema is the judgement | Overlay schema, plus one artifact run against two mock variants |
+| Overlay inheritance resolver | Resolution is mechanical once the schema is right; the schema is the judgement | Overlay schema (`replace_target` / `insert_after` / `skip`); no resolver, no second tenant variant |
 | Drift dashboard | Reporting infrastructure, not design | Per-run layer-hit telemetry in the logs |
 | Operator web console | Explicitly mockable per the brief | CLI claim/release against the real broker |
 | Queues, workers, service split | Explicitly not rewarded; the boundaries are what matter | Four interfaces at the four cut points |
@@ -706,16 +709,18 @@ Everything below is a deliberate omission with the seam left in place, not an un
 
 **The one thing that is not a cut.** The discovery run is real: a live LLM-driven run against the
 mock portal, with the transcript, the emitted artifact and the resulting replay in `/evidence/`.
-The brief is unambiguous that this cannot be described in place of being done. Four runs are
+The brief is unambiguous that this cannot be described in place of being done. Five runs are
 committed, indexed in `evidence/README.md`, and every path quoted in this document resolves to a
 file in that tree:
 
 | Run | Scenario | Result |
 |---|---|---|
-| `discovery-r001` | live model-driven discovery against the portal | emits `lookup_savings_balance.v1.json` |
-| `replay-r002` | same artifact, a valid member id | `SUCCESS` with typed outputs |
-| `replay-r003` | same artifact, an id with no record | `BUSINESS_OUTCOME / MEMBER_NOT_FOUND` |
-| `replay-r004` | injected server error, then operator takeover and resume | `FAILURE` escalated, then `SUCCESS` after handback |
+| `discovery-20260914081535` | live Gemini-driven discovery against the portal, member `12345` | emits `acme_core.lookup_savings_balance` v1 |
+| `replay-20260914224748` | same capability (hardened to v2), a valid member id | `SUCCESS`, typed `Money` output |
+| `replay-20260914224757` | same capability, an id with no record | `BUSINESS_OUTCOME / MEMBER_NOT_FOUND` |
+| `replay-20260914224802` | injected 500 on the entry page | `FAILURE`, with a captured screenshot |
+| `demo-handoff-1789426299` | the same injected-500 fault, escalated instead of just failed | `FAILURE` -> operator claims, fixes, releases -> `SUCCESS` on resume |
 
-`replay-r004` is the one worth reading: it exercises checkpoint failure, classification, evidence
-capture, the control-transfer state machine and checkpoint-based resume in a single run.
+`demo-handoff-1789426299` is the one worth reading: it exercises checkpoint failure,
+classification, evidence capture, the control-transfer state machine and checkpoint-based resume
+in a single run.
