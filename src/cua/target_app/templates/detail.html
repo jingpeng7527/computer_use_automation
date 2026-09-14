@@ -1,0 +1,12 @@
+<!doctype html>
+<html>
+<head><title>Member Detail</title></head>
+<body>
+<h1>Member Detail</h1>
+<table border="1">
+  <tr><td>Member Number</td><td>{{ member_id }}</td></tr>
+  <tr><td>Name</td><td>{{ member.name }}</td></tr>
+  <tr><td>Savings Balance</td><td>${{ "%.2f"|format(member.savings_balance_minor / 100) }} {{ member.currency }}</td></tr>
+</table>
+</body>
+</html>

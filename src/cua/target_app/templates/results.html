@@ -1,0 +1,17 @@
+<!doctype html>
+<html>
+<head><title>Search Results</title></head>
+<body>
+<h1>Search Results</h1>
+<table border="1">
+  <tr><th>Member Number</th><th>Name</th><th></th></tr>
+  <tr>
+    <td>{{ member_id }}</td>
+    <td>{{ member.name }}</td>
+    <td>
+      <div class="action-view-detail" onclick="location.href='/members/{{ member_id }}/detail'">View</div>
+    </td>
+  </tr>
+</table>
+</body>
+</html>
