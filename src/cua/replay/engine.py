@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from cua.escalation import ControlBroker, find_resume_point, raise_intervention
+from cua.escalation import ControlBroker, KeepAliveThread, find_resume_point, raise_intervention
 from cua.safety import (
     BoundExceeded,
     ExecutionGuard,
@@ -84,6 +84,7 @@ class _RunState:
     outputs: dict[str, str]
     step_results: list[StepResult]
     guard: ExecutionGuard
+    broker: ControlBroker | None = None
     recovery_used: int = 0
     match_retry_counts: dict[str, int] = field(default_factory=dict)
 
@@ -123,6 +124,7 @@ def replay(
         outputs={},
         step_results=[],
         guard=ExecutionGuard(policy),
+        broker=broker,
     )
 
     if capability.status != "approved":
@@ -159,7 +161,7 @@ def replay(
         except _Stop as stop:
             if broker is None or stop.result.status not in ("failed", "escalated"):
                 return stop.result
-            outcome, redacted_outputs = _escalate_and_wait(
+            outcome, redacted_outputs, session_lost_detail = _escalate_and_wait(
                 state,
                 step,
                 stop.result,
@@ -172,6 +174,9 @@ def replay(
             if outcome == "resume_next":
                 i += 1
                 continue
+            if outcome == "session_lost":
+                assert session_lost_detail is not None
+                return _finish(state, "failed", failure=session_lost_detail)
             return stop.result  # gave up: return the original, unresolved escalation/failure
         i += 1
 
@@ -369,6 +374,18 @@ def _run_step(state: _RunState, step: Step) -> None:
                 _stop_failed(
                     state, step, kind="policy_blocked", expected="not IRREVERSIBLE", observed=risk.reason
                 )
+
+        # REPORT.md sec 5: "Holding a token is not enough; automation asks
+        # the broker whether it is still the holder immediately before each
+        # action." Checked here, not once at the top of replay(), because an
+        # operator can claim control at any point during a run, not only
+        # after automation has already declared itself stuck -- a stale
+        # PAUSED row from a reused run_id, or a claim racing a step that
+        # hasn't hit trouble yet, both look identical from here: control is
+        # no longer automation's, so it must stop after this check rather
+        # than complete one more action first.
+        if state.broker is not None and not state.broker.is_automations_turn(state.run_id):
+            _stop_escalated(state, step, reason="control was claimed by an operator mid-run")
 
         try:
             _act(state, step, resolution)
@@ -611,13 +628,14 @@ def _escalate_and_wait(
     *,
     poll_s: float,
     max_wait_s: float,
-) -> tuple[str, dict[str, OutputValue]]:
+) -> tuple[str, dict[str, OutputValue], FailureDetail | None]:
     """Raises the intervention, then blocks -- polling the SAME broker a
     separate `cua ops claim/release` invocation writes to -- until control
     comes back as RESUMING, or `max_wait_s` elapses. The adapter/browser is
     never touched here except to observe: whatever fix happens, happens on
     the live session directly, outside this function. Returns one of
-    ("success", outputs), ("resume_next", {}), ("give_up", {})."""
+    ("success", outputs, None), ("resume_next", {}, None),
+    ("give_up", {}, None), or ("session_lost", {}, FailureDetail)."""
     screenshot_ref = None
     if stop_result.failure is not None:
         reason, expected, observed = (
@@ -645,25 +663,65 @@ def _escalate_and_wait(
         completed_steps=[s.step_id for s in state.step_results],
     )
 
-    waited = 0.0
-    while waited < max_wait_s:
-        row = broker.get_state(state.run_id)
-        if row is not None and row.state == "RESUMING":
-            resume_point = find_resume_point(state.capability, step, state.adapter)
-            broker.mark_resumed(state.run_id)
-            if resume_point == "success":
-                # 系统设计 sec 5.5: the operator finished the work by hand --
-                # report whatever outputs were captured before the stop, and
-                # run nothing further (partially completed work is often not
-                # idempotent).
-                outputs, _ = _redact_outputs(state, state.outputs)
-                return "success", outputs
-            if resume_point == "step":
-                return "resume_next", {}
-            return "give_up", {}  # neither candidate held -- a second escalation, not a guess
-        time.sleep(poll_s)
-        waited += poll_s
-    return "give_up", {}
+    # REPORT.md sec 5: while PAUSED and unclaimed, ping a SAFE_READ route so
+    # the target app's idle-session timer doesn't expire during the
+    # handoff. Out-of-band (its own HTTP client, not the paused page) so it
+    # never disturbs the stuck state the operator needs to see. Started
+    # here, not earlier, because there is nothing to keep alive before an
+    # intervention has actually been raised; stopped unconditionally below
+    # so a lingering thread never outlives this wait.
+    keepalive = KeepAliveThread(
+        base_url=state.adapter.location().origin,
+        policy=state.policy,
+        broker=broker,
+        run_id=state.run_id,
+    )
+    keepalive.start()
+    try:
+        waited = 0.0
+        while waited < max_wait_s:
+            row = broker.get_state(state.run_id)
+            if row is not None and row.state == "RESUMING":
+                resume_point = find_resume_point(state.capability, step, state.adapter)
+                broker.mark_resumed(state.run_id)
+                if resume_point == "success":
+                    # 系统设计 sec 5.5: the operator finished the work by hand
+                    # -- report whatever outputs were captured before the
+                    # stop, and run nothing further (partially completed
+                    # work is often not idempotent).
+                    outputs, _ = _redact_outputs(state, state.outputs)
+                    return "success", outputs, None
+                if resume_point == "step":
+                    return "resume_next", {}, None
+                # Neither candidate held. Before treating this as "the fix
+                # didn't work, try again" (a second escalation), check
+                # whether there is still a session to resume at all: if the
+                # resumed page has drifted outside the allowlisted scope
+                # entirely (a login redirect, a different origin), that is
+                # session loss, not an unconvincing fix, and pretending
+                # otherwise would resume "into" a session that was never
+                # the one the run started in.
+                location = state.adapter.location()
+                if not check_allowed("read", state.policy, current_location=location).allowed:
+                    return (
+                        "session_lost",
+                        {},
+                        FailureDetail(
+                            step_id=step.id,
+                            step_intent=step.intent,
+                            kind="session_lost",
+                            expected="the resumed session to still be within the allowlisted app scope",
+                            observed=redact_text(
+                                f"now at {location.origin}{location.path}", state.policy
+                            ),
+                        ),
+                    )
+                return "give_up", {}, None  # a second escalation, not a guess
+            time.sleep(poll_s)
+            waited += poll_s
+        return "give_up", {}, None
+    finally:
+        keepalive.stop()
 
 
 def _finish(state: _RunState, status: str, **payload) -> ReplayResult:

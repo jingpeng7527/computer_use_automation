@@ -35,6 +35,7 @@ FailureKind = Literal[
     "param_invalid",  # an input failed ParamSpec.pattern before replay started
     "bounds_exceeded",  # the executor's own step-count or wall-clock ceiling was hit
     "not_approved",  # unattended replay refuses to run a capability that isn't status="approved"
+    "session_lost",  # resumed after a handoff, but the session no longer holds the app's scope
 ]
 
 

@@ -3,6 +3,8 @@
     cua serve-target     # run the local mock legacy console (the "target app")
     cua discover         # LLM-driven discovery run -> emits a capability artifact
     cua harden           # replay with bad input (no LLM), derive a runtime_match
+    cua approve          # promote a draft artifact to approved -- replay refuses drafts
+    cua tag-output       # mark a declared output's sensitivity for replay-time redaction
     cua replay           # deterministic replay of an artifact (no LLM)
     cua ops              # claim/release/status -- the human side of a handoff
     cua catalog          # list saved capability artifacts
@@ -521,6 +523,56 @@ def approve(
     )
     saved_path = ArtifactStore().save(approved)
     typer.secho(f"approved: {saved_path}", fg=typer.colors.GREEN)
+
+
+@app.command("tag-output")
+def tag_output(
+    artifact: str = typer.Option(..., help="Path to a saved capability artifact (JSON)."),
+    name: str = typer.Option(..., help="Output name to tag (must match a declared OutputSpec)."),
+    sensitivity: str = typer.Option(..., help="none | pii | sensitive"),
+) -> None:
+    """Mark a declared output's sensitivity -- the human review step that
+    makes replay's own output redaction (engine.py's _redact_outputs)
+    actually mask something. Nothing sets this automatically: discovery
+    only ever emits sensitivity="none" on every output it captures, so
+    without this command a capability built to read, say, an account
+    holder's name would return it unmasked forever. Resets status to
+    draft -- this changes what the capability's result contract reveals to
+    a caller, which is exactly the kind of change Section 7's approval
+    gate exists to have a human look at again."""
+    from pathlib import Path
+
+    from pydantic import ValidationError
+
+    from cua.schema import ArtifactStore, Capability
+
+    capability = Capability.model_validate_json(Path(artifact).read_text())
+    names = {o.name for o in capability.outputs}
+    if name not in names:
+        typer.secho(
+            f"{name!r} is not a declared output of this capability (has: {sorted(names)})",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
+
+    outputs = [
+        {**o.model_dump(mode="json"), "sensitivity": sensitivity} if o.name == name else o.model_dump(mode="json")
+        for o in capability.outputs
+    ]
+    try:
+        updated = Capability.model_validate(
+            {**capability.model_dump(mode="json"), "outputs": outputs, "status": "draft"}
+        )
+    except ValidationError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    saved_path = ArtifactStore().save(updated)
+    typer.secho(
+        f"tagged {name!r} as sensitivity={sensitivity!r}; saved to {saved_path} "
+        f"(status: draft -- run `cua approve` before replay)",
+        fg=typer.colors.YELLOW,
+    )
 
 
 @app.command()

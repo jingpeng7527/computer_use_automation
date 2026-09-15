@@ -163,11 +163,15 @@ capability can return, alongside `inputs` and `outputs` rather than buried in th
 below, and validated at construction time to match `runtime_matches` in both directions: a code
 with no rule that can produce it is rejected exactly like a rule producing an undeclared code.
 The implemented capability's list, after the hardening pass, is `["MEMBER_NOT_FOUND"]` — the one
-divergence actually observed against the mock portal. `ACCOUNT_FROZEN`, `PERMISSION_DENIED` and
-`SESSION_LOST_DURING_HANDOFF` are real codes this design accounts for (Sections 4 and 5
-respectively) but were not exercised: producing them needs member fixtures and a session-timeout
-mechanism the target app doesn't implement, cut for time rather than silently dropped — see
-Section 7. Failure codes are not declared here because they are system-level and identical
+divergence actually observed against the mock portal. `ACCOUNT_FROZEN` and `PERMISSION_DENIED` are
+real business-outcome codes this design accounts for (Section 4) but were not exercised: producing
+them needs member fixtures the target app doesn't have, cut for time rather than silently dropped
+— see Section 7. Session loss during a handoff is a different case, and is implemented: it is a
+`FailureKind` (`session_lost`), not a business outcome, since a session disappearing mid-run is a
+failure the caller needs to know about, not a legitimate answer. `tests/test_escalation_wiring.py`
+exercises it directly. What's still not exercised is the trigger condition against the real mock
+app: it has no session-expiry mechanism to fire it live, only a scripted adapter that simulates one
+landing outside the allowlisted scope. Failure codes are not declared here because they are system-level and identical
 across capabilities; business outcomes are specific to what this capability can legitimately
 answer. A calling agent needs to know that `lookup_savings_balance` can answer `MEMBER_NOT_FOUND`
 before it invokes it, and it should not have to read detection rules to find that out, any more
@@ -550,9 +554,15 @@ depended on a scheduler to reap leases would either need a component that does n
 would fail exactly when that component died. Nothing has to be running for a lease to expire.
 
 *The executor re-checks before every action.* Holding a token is not enough; automation asks the
-broker whether it is still the holder immediately before each action. If control changed
+broker whether it is still the holder immediately before each action, not only once while it is
+already blocked waiting on an escalation. This matters before a run has ever gotten stuck too: a
+claim racing an in-flight run, or a stale `PAUSED`/`HUMAN` row left over from a reused run_id, both
+look identical to "control isn't automation's" from here, and both must stop the run rather than
+let it act once more on the strength of a check it did several steps ago. If control changed
 mid-flight it stops after at most one action instead of racing the operator's clicks. The cost
 is one read per step, which is negligible against the waits already in every step.
+`tests/test_escalation_wiring.py::test_control_is_rechecked_before_every_action_not_just_once`
+exercises this directly, including the case where control is already lost before step one.
 
 **Resuming.** Control is not handed back to the next step index, because the operator may have
 navigated elsewhere. Nor is the current state matched against every checkpoint in the artifact:
@@ -575,13 +585,22 @@ few minutes, while routing an intervention, waiting for an operator to pick it u
 read the screen can take longer than that. A design that assumes the session survives the handoff
 is assuming away the most likely outcome. Two measures, neither of which needs credentials:
 
-While the run is `PAUSED` and no operator has claimed it, the executor issues a periodic
-keep-alive against a route declared `SAFE_READ` in the allowlist specifically for this purpose. It
-is a read, it changes no state, and it exists only to stop the idle timer.
+While the run is `PAUSED` and no operator has claimed it, a background thread (`KeepAliveThread`,
+started when the intervention is raised and stopped unconditionally when the wait ends) issues a
+periodic keep-alive against a route declared `SAFE_READ` in the allowlist specifically for this
+purpose. It is a read, it changes no state, and it exists only to stop the idle timer. It runs
+against its own out-of-band HTTP client, never the paused page itself, so it can never disturb the
+stuck state the operator needs to see. The mock target app doesn't implement session expiry, so
+there is no live scenario here that actually needs the ping — it is exercised (the thread does
+start and stop, verified in `tests/test_escalation_wiring.py`) but not falsified end to end.
 
 When that is not enough, session loss is a declared outcome rather than a pretence of lossless
-resume: `SESSION_LOST_DURING_HANDOFF`, returned with the list of steps that did complete, so the
-caller knows what was and was not done. Automatic re-authentication is deliberately not built. It
+resume: a `FailureKind` of `session_lost`, returned with the list of steps that did complete, so
+the caller knows what was and was not done. Detected concretely, not assumed: after a handoff
+resolves to neither resume candidate holding, if the session's current location has also drifted
+outside the allowlisted app scope entirely (the same check that gates every action elsewhere), that
+is session loss rather than an ordinary give-up, and is reported as such instead of retried as if
+the operator's fix just didn't work. Automatic re-authentication is deliberately not built. It
 would require the system to hold credentials, which Section 6 forbids, and it would produce a new
 session, which is the one thing the brief's takeover requirement rules out. Reporting honestly
 that the session is gone is better than resuming into a session that is not the one the work
@@ -672,7 +691,12 @@ its own limits.
   see evidenced rather than described.
 
 Outputs are tagged too, not just inputs. A returned member name is PII on the way out exactly as
-a member id is on the way in.
+a member id is on the way in. Nothing sets this automatically, though: discovery only ever emits
+`sensitivity="none"` on every output it captures, and hardening never revisits it either. `cua
+tag-output --artifact <path> --name <output> --sensitivity pii|sensitive` is the human review step
+that actually sets it -- the same shape as `cua approve`, and it resets status back to `draft` for
+the same reason: it changes what the capability's result contract reveals to a caller, which is
+exactly the kind of change the approval gate exists to have a human look at again.
 
 That tagging is only available once a human (or a hardening pass) has actually reviewed an
 `OutputSpec` -- and discovery evidence is written before that review has ever happened. A regex
