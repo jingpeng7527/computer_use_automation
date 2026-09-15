@@ -1,0 +1,339 @@
+{
+  "$defs": {
+    "BboxStrategy": {
+      "description": "Layer 4: last resort for canvas- or image-rendered surfaces.",
+      "properties": {
+        "h": {
+          "title": "H",
+          "type": "number"
+        },
+        "layer": {
+          "const": 4,
+          "default": 4,
+          "title": "Layer",
+          "type": "integer"
+        },
+        "rationale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rationale"
+        },
+        "type": {
+          "const": "bbox",
+          "default": "bbox",
+          "title": "Type",
+          "type": "string"
+        },
+        "w": {
+          "title": "W",
+          "type": "number"
+        },
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
+      "title": "BboxStrategy",
+      "type": "object"
+    },
+    "CssStrategy": {
+      "description": "Layer 3: web-only fallback. A generated id or hashed class does not\ncount as robust here -- this is for a stable, human-authored selector.",
+      "properties": {
+        "layer": {
+          "const": 3,
+          "default": 3,
+          "title": "Layer",
+          "type": "integer"
+        },
+        "rationale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rationale"
+        },
+        "selector": {
+          "title": "Selector",
+          "type": "string"
+        },
+        "type": {
+          "const": "css",
+          "default": "css",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "selector"
+      ],
+      "title": "CssStrategy",
+      "type": "object"
+    },
+    "InsertAfter": {
+      "properties": {
+        "op": {
+          "const": "insert_after",
+          "default": "insert_after",
+          "title": "Op",
+          "type": "string"
+        },
+        "step": {
+          "additionalProperties": true,
+          "title": "Step",
+          "type": "object"
+        },
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step_id",
+        "step"
+      ],
+      "title": "InsertAfter",
+      "type": "object"
+    },
+    "LabelAnchorStrategy": {
+      "description": "Layer 2: find a stable nearby label/text, then walk structurally to\nthe real target. The workhorse for legacy table layouts where the\ncontrol itself has no accessible name.",
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "layer": {
+          "const": 2,
+          "default": 2,
+          "title": "Layer",
+          "type": "integer"
+        },
+        "nth": {
+          "default": 0,
+          "title": "Nth",
+          "type": "integer"
+        },
+        "rationale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rationale"
+        },
+        "relation": {
+          "enum": [
+            "same_row_input",
+            "same_row_cell",
+            "next_cell",
+            "following_field"
+          ],
+          "title": "Relation",
+          "type": "string"
+        },
+        "type": {
+          "const": "label_anchor",
+          "default": "label_anchor",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "relation"
+      ],
+      "title": "LabelAnchorStrategy",
+      "type": "object"
+    },
+    "ReplaceTarget": {
+      "properties": {
+        "op": {
+          "const": "replace_target",
+          "default": "replace_target",
+          "title": "Op",
+          "type": "string"
+        },
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/Target"
+        }
+      },
+      "required": [
+        "step_id",
+        "target"
+      ],
+      "title": "ReplaceTarget",
+      "type": "object"
+    },
+    "RoleNameStrategy": {
+      "description": "Layer 1: accessibility role + accessible name. Portable across web\nand desktop; survives markup and layout changes.",
+      "properties": {
+        "layer": {
+          "const": 1,
+          "default": 1,
+          "title": "Layer",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "rationale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rationale"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "type": {
+          "const": "role_name",
+          "default": "role_name",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "name"
+      ],
+      "title": "RoleNameStrategy",
+      "type": "object"
+    },
+    "Skip": {
+      "properties": {
+        "op": {
+          "const": "skip",
+          "default": "skip",
+          "title": "Op",
+          "type": "string"
+        },
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step_id"
+      ],
+      "title": "Skip",
+      "type": "object"
+    },
+    "Target": {
+      "properties": {
+        "strategies": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "bbox": "#/$defs/BboxStrategy",
+                "css": "#/$defs/CssStrategy",
+                "label_anchor": "#/$defs/LabelAnchorStrategy",
+                "role_name": "#/$defs/RoleNameStrategy"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/RoleNameStrategy"
+              },
+              {
+                "$ref": "#/$defs/LabelAnchorStrategy"
+              },
+              {
+                "$ref": "#/$defs/CssStrategy"
+              },
+              {
+                "$ref": "#/$defs/BboxStrategy"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Strategies",
+          "type": "array"
+        }
+      },
+      "required": [
+        "strategies"
+      ],
+      "title": "Target",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "extends": {
+      "title": "Extends",
+      "type": "string"
+    },
+    "overrides": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "insert_after": "#/$defs/InsertAfter",
+            "replace_target": "#/$defs/ReplaceTarget",
+            "skip": "#/$defs/Skip"
+          },
+          "propertyName": "op"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/ReplaceTarget"
+          },
+          {
+            "$ref": "#/$defs/InsertAfter"
+          },
+          {
+            "$ref": "#/$defs/Skip"
+          }
+        ]
+      },
+      "title": "Overrides",
+      "type": "array"
+    },
+    "tenant_id": {
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "extends",
+    "tenant_id"
+  ],
+  "title": "Overlay",
+  "type": "object"
+}

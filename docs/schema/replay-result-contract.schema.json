@@ -1,0 +1,376 @@
+{
+  "$defs": {
+    "BusinessOutcomeResult": {
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "detected_after_step": {
+          "title": "Detected After Step",
+          "type": "string"
+        },
+        "outputs": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Money"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "title": "Outputs",
+          "type": "object"
+        }
+      },
+      "required": [
+        "code",
+        "description",
+        "detected_after_step"
+      ],
+      "title": "BusinessOutcomeResult",
+      "type": "object"
+    },
+    "EscalationRef": {
+      "properties": {
+        "intervention_id": {
+          "title": "Intervention Id",
+          "type": "string"
+        },
+        "operator_actions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Operator Actions",
+          "type": "array"
+        },
+        "raised_at_step": {
+          "title": "Raised At Step",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "resolved": {
+          "default": false,
+          "title": "Resolved",
+          "type": "boolean"
+        },
+        "session_handle": {
+          "title": "Session Handle",
+          "type": "string"
+        }
+      },
+      "required": [
+        "intervention_id",
+        "reason",
+        "raised_at_step",
+        "session_handle"
+      ],
+      "title": "EscalationRef",
+      "type": "object"
+    },
+    "FailureDetail": {
+      "properties": {
+        "expected": {
+          "title": "Expected",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "target_not_found",
+            "ambiguous_target",
+            "checkpoint_failed",
+            "timeout",
+            "unexpected_dialog",
+            "navigation_error",
+            "app_error",
+            "policy_blocked",
+            "recovery_exhausted",
+            "param_invalid",
+            "bounds_exceeded"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "observed": {
+          "title": "Observed",
+          "type": "string"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "screenshot_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Screenshot Ref"
+        },
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        },
+        "step_intent": {
+          "title": "Step Intent",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step_id",
+        "step_intent",
+        "kind",
+        "expected",
+        "observed"
+      ],
+      "title": "FailureDetail",
+      "type": "object"
+    },
+    "Money": {
+      "description": "The only representation for currency anywhere in this system. Never a\nfloat: binary floating point cannot represent decimal currency exactly,\nand this is regulated financial data (REPORT.md sec 2).",
+      "properties": {
+        "amount_minor": {
+          "title": "Amount Minor",
+          "type": "integer"
+        },
+        "currency": {
+          "title": "Currency",
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount_minor",
+        "currency"
+      ],
+      "title": "Money",
+      "type": "object"
+    },
+    "StepResult": {
+      "properties": {
+        "duration_ms": {
+          "title": "Duration Ms",
+          "type": "integer"
+        },
+        "extracted": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Money"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "title": "Extracted",
+          "type": "object"
+        },
+        "intent": {
+          "title": "Intent",
+          "type": "string"
+        },
+        "locator_layer_hit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Locator Layer Hit"
+        },
+        "recoveries_applied": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Recoveries Applied",
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "ok",
+            "recovered",
+            "skipped",
+            "outcome",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step_id",
+        "intent",
+        "status",
+        "duration_ms"
+      ],
+      "title": "StepResult",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "capability_id": {
+      "title": "Capability Id",
+      "type": "string"
+    },
+    "capability_version": {
+      "title": "Capability Version",
+      "type": "integer"
+    },
+    "ended_at": {
+      "format": "date-time",
+      "title": "Ended At",
+      "type": "string"
+    },
+    "escalation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EscalationRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "evidence_dir": {
+      "title": "Evidence Dir",
+      "type": "string"
+    },
+    "failure": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FailureDetail"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "outcome": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BusinessOutcomeResult"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "outputs": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Money"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Outputs"
+    },
+    "redactions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Redactions",
+      "type": "array"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "success",
+        "business_outcome",
+        "failed",
+        "escalated"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/StepResult"
+      },
+      "title": "Steps",
+      "type": "array"
+    }
+  },
+  "required": [
+    "capability_id",
+    "capability_version",
+    "run_id",
+    "status",
+    "started_at",
+    "ended_at",
+    "evidence_dir"
+  ],
+  "title": "ReplayResult",
+  "type": "object"
+}

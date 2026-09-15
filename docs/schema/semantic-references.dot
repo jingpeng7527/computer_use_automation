@@ -1,0 +1,27 @@
+digraph semantic_references {
+  graph [rankdir=LR, bgcolor="#ffffff", pad="0.25", nodesep="0.55", ranksep="1.1", fontname="Helvetica"];
+  node [shape=box, style="rounded,filled", color="#7e8ea3", fillcolor="#f5f8fc", fontname="Helvetica", fontsize=11, margin="0.16,0.10"];
+  edge [style=dashed, color="#7c3aed", fontname="Helvetica", fontsize=9, arrowsize=0.7];
+  labelloc="t"; label="Semantic references in the contract"; fontsize=20; fontname="Helvetica";
+  legend [shape=plaintext, label="dashed arrow = ID or template relationship; solid arrows appear in the type diagrams"];
+  "Capability.inputs" [label="Capability.inputs\nParamSpec.name"];
+  "Capability.outputs" [label="Capability.outputs\nOutputSpec.name"];
+  "Step.id" [label="Step.id"];
+  "RuntimeMatch.after_step" [label="RuntimeMatch.after_step"];
+  "OutputSpec.source_step_id" [label="OutputSpec.source_step_id"];
+  "TypeText.value_from" [label="TypeText.value_from\n{{input.x}} | {{ctx.x}}"];
+  "Select.value_from" [label="Select.value_from\n{{input.x}} | {{ctx.x}}"];
+  "Read.into" [label="Read.into\noutput_name | ctx.x"];
+  "Overlay.extends" [label="Overlay.extends\ncapability_id@version"];
+  "Overlay.step_id" [label="Overlay override step_id"];
+  "Capability.version" [label="Capability\ncapability_id@version"];
+  "OutputSpec.source_step_id" -> "Step.id" [label="produced by"];
+  "RuntimeMatch.after_step" -> "Step.id" [label="appears after"];
+  "TypeText.value_from" -> "Capability.inputs" [label="input binding"];
+  "Select.value_from" -> "Capability.inputs" [label="input binding"];
+  "Read.into" -> "Capability.outputs" [label="declared output"];
+  "Read.into" -> "TypeText.value_from" [label="ctx producer -> consumer"];
+  "Read.into" -> "Select.value_from" [label="ctx producer -> consumer"];
+  "Overlay.extends" -> "Capability.version" [label="base artifact"];
+  "Overlay.step_id" -> "Step.id" [label="patches"];
+}

@@ -1,0 +1,32 @@
+digraph schema {
+  graph [rankdir=TB, bgcolor="#ffffff", pad="0.25", nodesep="0.45", ranksep="1.0", fontname="Helvetica"];
+  node [shape=plain, fontname="Helvetica"];
+  edge [color="#425466", fontname="Helvetica", fontsize=9, arrowsize=0.7];
+  labelloc="t"; label="Tenant overlay contract"; fontsize=20; fontname="Helvetica";
+  subgraph cluster_0 {
+    label="Target resolution"; color="#b9c6d8"; penwidth=1; style="rounded";
+    "BboxStrategy" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>BboxStrategy</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">rationale?: scalar</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">layer?: integer</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">type?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">x: number</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">y: number</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">w: number</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">h: number</FONT></TD></TR></TABLE>>];
+    "CssStrategy" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>CssStrategy</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">rationale?: scalar</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">layer?: integer</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">type?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">selector: string</FONT></TD></TR></TABLE>>];
+    "LabelAnchorStrategy" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>LabelAnchorStrategy</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">rationale?: scalar</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">layer?: integer</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">type?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">label: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">relation: enum</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">nth?: integer</FONT></TD></TR></TABLE>>];
+    "RoleNameStrategy" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>RoleNameStrategy</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">rationale?: scalar</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">layer?: integer</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">type?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">role: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">name: string</FONT></TD></TR></TABLE>>];
+    "Target" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>Target</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">strategies: list[BboxStrategy, CssStrategy, LabelAnchorStrategy, RoleNameStrategy]</FONT></TD></TR></TABLE>>];
+  }
+  subgraph cluster_1 {
+    label="Override operations"; color="#b9c6d8"; penwidth=1; style="rounded";
+    "InsertAfter" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>InsertAfter</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">op?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">step_id: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">step: object</FONT></TD></TR></TABLE>>];
+    "ReplaceTarget" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>ReplaceTarget</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">op?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">step_id: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">target: Target</FONT></TD></TR></TABLE>>];
+    "Skip" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>Skip</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">op?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">step_id: string</FONT></TD></TR></TABLE>>];
+  }
+  subgraph cluster_2 {
+    label="Overlay"; color="#b9c6d8"; penwidth=1; style="rounded";
+    "Overlay" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>Overlay</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">extends: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">tenant_id: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">overrides?: list[InsertAfter, ReplaceTarget, Skip]</FONT></TD></TR></TABLE>>];
+  }
+  "Overlay" -> "InsertAfter" [label="overrides"];
+  "Overlay" -> "ReplaceTarget" [label="overrides"];
+  "Overlay" -> "Skip" [label="overrides"];
+  "ReplaceTarget" -> "Target" [label="target"];
+  "Target" -> "BboxStrategy" [label="strategies"];
+  "Target" -> "CssStrategy" [label="strategies"];
+  "Target" -> "LabelAnchorStrategy" [label="strategies"];
+  "Target" -> "RoleNameStrategy" [label="strategies"];
+}

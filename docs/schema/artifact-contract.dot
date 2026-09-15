@@ -1,0 +1,84 @@
+digraph schema {
+  graph [rankdir=TB, bgcolor="#ffffff", pad="0.25", nodesep="0.45", ranksep="1.0", fontname="Helvetica"];
+  node [shape=plain, fontname="Helvetica"];
+  edge [color="#425466", fontname="Helvetica", fontsize=9, arrowsize=0.7];
+  labelloc="t"; label="Capability artifact contract"; fontsize=20; fontname="Helvetica";
+  subgraph cluster_0 {
+    label="Artifact API"; color="#b9c6d8"; penwidth=1; style="rounded";
+    "AppProfile" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>AppProfile</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">product: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">version: string</FONT></TD></TR></TABLE>>];
+    "Capability" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>Capability</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">schema_version?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">capability_id: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">version?: integer</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">status?: enum</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">title: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">summary: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">app_profile: AppProfile</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">inputs?: list[ParamSpec]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">outputs?: list[OutputSpec]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">possible_outcomes?: list[scalar]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">steps: list[Step]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">runtime_matches?: list[RuntimeMatch]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">recovery_budget?: RecoveryBudget</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">success_condition: Checkpoint</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">provenance: Provenance</FONT></TD></TR></TABLE>>];
+    "OutputSpec" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>OutputSpec</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">name: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">type: enum</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">description: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">source_step_id: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">sensitivity?: enum</FONT></TD></TR></TABLE>>];
+    "ParamSpec" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>ParamSpec</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">name: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">type: enum</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">required?: boolean</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">description: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">pattern?: scalar</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">enum_values?: scalar</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">sensitivity?: enum</FONT></TD></TR></TABLE>>];
+    "Provenance" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>Provenance</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">discovered_at: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">model: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">goal: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">discovery_run_id: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">transcript_sha256: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">human_edited?: boolean</FONT></TD></TR></TABLE>>];
+    "RecoveryAction" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>RecoveryAction</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">do: enum</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">target_role?: scalar</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">target_name?: scalar</FONT></TD></TR></TABLE>>];
+    "RecoveryBudget" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>RecoveryBudget</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">per_run?: integer</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">max_depth?: integer</FONT></TD></TR></TABLE>>];
+    "RuntimeMatch" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>RuntimeMatch</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">id: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">category: enum</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">terminal: boolean</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">detect: union[5]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">after_step?: scalar</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">result_code?: scalar</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">result_outputs?: list[scalar]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">recovery?: RecoveryAction</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">max_retries?: integer</FONT></TD></TR></TABLE>>];
+  }
+  subgraph cluster_1 {
+    label="Target resolution"; color="#b9c6d8"; penwidth=1; style="rounded";
+    "BboxStrategy" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>BboxStrategy</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">rationale?: scalar</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">layer?: integer</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">type?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">x: number</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">y: number</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">w: number</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">h: number</FONT></TD></TR></TABLE>>];
+    "CssStrategy" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>CssStrategy</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">rationale?: scalar</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">layer?: integer</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">type?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">selector: string</FONT></TD></TR></TABLE>>];
+    "LabelAnchorStrategy" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>LabelAnchorStrategy</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">rationale?: scalar</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">layer?: integer</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">type?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">label: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">relation: enum</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">nth?: integer</FONT></TD></TR></TABLE>>];
+    "RoleNameStrategy" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>RoleNameStrategy</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">rationale?: scalar</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">layer?: integer</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">type?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">role: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">name: string</FONT></TD></TR></TABLE>>];
+    "Target" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>Target</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">strategies: list[BboxStrategy, CssStrategy, LabelAnchorStrategy, RoleNameStrategy]</FONT></TD></TR></TABLE>>];
+  }
+  subgraph cluster_2 {
+    label="Verification"; color="#b9c6d8"; penwidth=1; style="rounded";
+    "Checkpoint" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>Checkpoint</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">description: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">all_of: list[NamedPredicate, RoleName, TextContains, UrlMatches, ValueEquals]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">timeout_ms?: integer</FONT></TD></TR></TABLE>>];
+    "NamedPredicate" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>NamedPredicate</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">kind?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">name: string</FONT></TD></TR></TABLE>>];
+    "RoleName" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>RoleName</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">kind?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">role: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">name: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">visible?: boolean</FONT></TD></TR></TABLE>>];
+    "TextContains" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>TextContains</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">kind?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">text: TextMatcher</FONT></TD></TR></TABLE>>];
+    "TextMatcher" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>TextMatcher</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">mode?: enum</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">value: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">ignore_case?: boolean</FONT></TD></TR></TABLE>>];
+    "UrlMatches" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>UrlMatches</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">kind?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">pattern: string</FONT></TD></TR></TABLE>>];
+    "ValueEquals" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>ValueEquals</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">kind?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">role: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">name: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">expected_template: string</FONT></TD></TR></TABLE>>];
+  }
+  subgraph cluster_3 {
+    label="Procedure"; color="#b9c6d8"; penwidth=1; style="rounded";
+    "Click" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>Click</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">type?: string</FONT></TD></TR></TABLE>>];
+    "Navigate" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>Navigate</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">type?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">url_template: string</FONT></TD></TR></TABLE>>];
+    "Read" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>Read</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">type?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">into: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">attribute?: scalar</FONT></TD></TR></TABLE>>];
+    "Select" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>Select</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">type?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">value_from: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">by?: enum</FONT></TD></TR></TABLE>>];
+    "Step" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>Step</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">id: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">intent: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">action: union[6]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">risk_level: enum</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">target?: Target</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">wait?: WaitSpec</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">checkpoint?: Checkpoint</FONT></TD></TR></TABLE>>];
+    "TypeText" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>TypeText</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">type?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">value_from: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">submit?: boolean</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">clear_first?: boolean</FONT></TD></TR></TABLE>>];
+    "Wait" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>Wait</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">type?: string</FONT></TD></TR></TABLE>>];
+    "WaitSpec" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>WaitSpec</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">until: union[5]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">timeout_ms?: integer</FONT></TD></TR></TABLE>>];
+  }
+  "Capability" -> "AppProfile" [label="app_profile"];
+  "Capability" -> "ParamSpec" [label="inputs"];
+  "Capability" -> "OutputSpec" [label="outputs"];
+  "Capability" -> "Step" [label="steps"];
+  "Capability" -> "RuntimeMatch" [label="runtime_matches"];
+  "Capability" -> "RecoveryBudget" [label="recovery_budget"];
+  "Capability" -> "Checkpoint" [label="success_condition"];
+  "Capability" -> "Provenance" [label="provenance"];
+  "Checkpoint" -> "NamedPredicate" [label="all_of"];
+  "Checkpoint" -> "RoleName" [label="all_of"];
+  "Checkpoint" -> "TextContains" [label="all_of"];
+  "Checkpoint" -> "UrlMatches" [label="all_of"];
+  "Checkpoint" -> "ValueEquals" [label="all_of"];
+  "RuntimeMatch" -> "NamedPredicate" [label="detect"];
+  "RuntimeMatch" -> "RoleName" [label="detect"];
+  "RuntimeMatch" -> "TextContains" [label="detect"];
+  "RuntimeMatch" -> "UrlMatches" [label="detect"];
+  "RuntimeMatch" -> "ValueEquals" [label="detect"];
+  "RuntimeMatch" -> "RecoveryAction" [label="recovery"];
+  "Step" -> "Click" [label="action"];
+  "Step" -> "Navigate" [label="action"];
+  "Step" -> "Read" [label="action"];
+  "Step" -> "Select" [label="action"];
+  "Step" -> "TypeText" [label="action"];
+  "Step" -> "Wait" [label="action"];
+  "Step" -> "Target" [label="target"];
+  "Step" -> "WaitSpec" [label="wait"];
+  "Step" -> "Checkpoint" [label="checkpoint"];
+  "Target" -> "BboxStrategy" [label="strategies"];
+  "Target" -> "CssStrategy" [label="strategies"];
+  "Target" -> "LabelAnchorStrategy" [label="strategies"];
+  "Target" -> "RoleNameStrategy" [label="strategies"];
+  "TextContains" -> "TextMatcher" [label="text"];
+  "WaitSpec" -> "NamedPredicate" [label="until"];
+  "WaitSpec" -> "RoleName" [label="until"];
+  "WaitSpec" -> "TextContains" [label="until"];
+  "WaitSpec" -> "UrlMatches" [label="until"];
+  "WaitSpec" -> "ValueEquals" [label="until"];
+}

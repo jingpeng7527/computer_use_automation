@@ -119,8 +119,9 @@ that for yourself.
 
 The Pydantic contracts are rendered into version-controlled diagrams under
 [`docs/schema/`](docs/schema/). Solid arrows show typed containment; the separate
-`semantic-references.svg` uses dashed arrows for string IDs and templates that the
-artifact's cross-field validators enforce.
+`semantic-references.svg` uses dashed arrows for string IDs and templates. The
+Capability artifact's cross-field validators enforce the relevant live relations;
+the overlay links document the planned multi-tenant stretch.
 
 ```bash
 brew install graphviz # macOS, once

@@ -1,0 +1,1142 @@
+{
+  "$defs": {
+    "AppProfile": {
+      "description": "The one version field in this file that is a fact about the world,\nnot about us: which vendor product/build this was recorded against.\n`schema_version` versions this file format; `Capability.version` versions\nthe capability itself; only `AppProfile.version` is external.",
+      "properties": {
+        "product": {
+          "title": "Product",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "product",
+        "version"
+      ],
+      "title": "AppProfile",
+      "type": "object"
+    },
+    "BboxStrategy": {
+      "description": "Layer 4: last resort for canvas- or image-rendered surfaces.",
+      "properties": {
+        "h": {
+          "title": "H",
+          "type": "number"
+        },
+        "layer": {
+          "const": 4,
+          "default": 4,
+          "title": "Layer",
+          "type": "integer"
+        },
+        "rationale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rationale"
+        },
+        "type": {
+          "const": "bbox",
+          "default": "bbox",
+          "title": "Type",
+          "type": "string"
+        },
+        "w": {
+          "title": "W",
+          "type": "number"
+        },
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
+      "title": "BboxStrategy",
+      "type": "object"
+    },
+    "Checkpoint": {
+      "description": "All conditions must hold (AND). Proves a step -- or the whole\ncapability -- actually reached the state it claims, rather than\nassuming the previous action worked.",
+      "properties": {
+        "all_of": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "named_predicate": "#/$defs/NamedPredicate",
+                "role_name": "#/$defs/RoleName",
+                "text_contains": "#/$defs/TextContains",
+                "url_matches": "#/$defs/UrlMatches",
+                "value_equals": "#/$defs/ValueEquals"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/TextContains"
+              },
+              {
+                "$ref": "#/$defs/RoleName"
+              },
+              {
+                "$ref": "#/$defs/UrlMatches"
+              },
+              {
+                "$ref": "#/$defs/ValueEquals"
+              },
+              {
+                "$ref": "#/$defs/NamedPredicate"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "All Of",
+          "type": "array"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "timeout_ms": {
+          "default": 10000,
+          "title": "Timeout Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "description",
+        "all_of"
+      ],
+      "title": "Checkpoint",
+      "type": "object"
+    },
+    "Click": {
+      "properties": {
+        "type": {
+          "const": "click",
+          "default": "click",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "Click",
+      "type": "object"
+    },
+    "CssStrategy": {
+      "description": "Layer 3: web-only fallback. A generated id or hashed class does not\ncount as robust here -- this is for a stable, human-authored selector.",
+      "properties": {
+        "layer": {
+          "const": 3,
+          "default": 3,
+          "title": "Layer",
+          "type": "integer"
+        },
+        "rationale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rationale"
+        },
+        "selector": {
+          "title": "Selector",
+          "type": "string"
+        },
+        "type": {
+          "const": "css",
+          "default": "css",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "selector"
+      ],
+      "title": "CssStrategy",
+      "type": "object"
+    },
+    "LabelAnchorStrategy": {
+      "description": "Layer 2: find a stable nearby label/text, then walk structurally to\nthe real target. The workhorse for legacy table layouts where the\ncontrol itself has no accessible name.",
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "layer": {
+          "const": 2,
+          "default": 2,
+          "title": "Layer",
+          "type": "integer"
+        },
+        "nth": {
+          "default": 0,
+          "title": "Nth",
+          "type": "integer"
+        },
+        "rationale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rationale"
+        },
+        "relation": {
+          "enum": [
+            "same_row_input",
+            "same_row_cell",
+            "next_cell",
+            "following_field"
+          ],
+          "title": "Relation",
+          "type": "string"
+        },
+        "type": {
+          "const": "label_anchor",
+          "default": "label_anchor",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "relation"
+      ],
+      "title": "LabelAnchorStrategy",
+      "type": "object"
+    },
+    "NamedPredicate": {
+      "description": "Escape hatch for an engine-known check that doesn't reduce to text or\na role/name, e.g. 'no_error_banner' or 'network_idle'.",
+      "properties": {
+        "kind": {
+          "const": "named_predicate",
+          "default": "named_predicate",
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "NamedPredicate",
+      "type": "object"
+    },
+    "Navigate": {
+      "properties": {
+        "type": {
+          "const": "navigate",
+          "default": "navigate",
+          "title": "Type",
+          "type": "string"
+        },
+        "url_template": {
+          "title": "Url Template",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url_template"
+      ],
+      "title": "Navigate",
+      "type": "object"
+    },
+    "OutputSpec": {
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "sensitivity": {
+          "default": "none",
+          "enum": [
+            "none",
+            "pii",
+            "sensitive"
+          ],
+          "title": "Sensitivity",
+          "type": "string"
+        },
+        "source_step_id": {
+          "title": "Source Step Id",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "string",
+            "integer",
+            "boolean",
+            "date",
+            "enum",
+            "money"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "description",
+        "source_step_id"
+      ],
+      "title": "OutputSpec",
+      "type": "object"
+    },
+    "ParamSpec": {
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "enum_values": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enum Values"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "pattern": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pattern"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "sensitivity": {
+          "default": "none",
+          "enum": [
+            "none",
+            "pii",
+            "sensitive"
+          ],
+          "title": "Sensitivity",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "string",
+            "integer",
+            "boolean",
+            "date",
+            "enum",
+            "money"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "description"
+      ],
+      "title": "ParamSpec",
+      "type": "object"
+    },
+    "Provenance": {
+      "description": "How this was discovered, without inlining the transcript -- decoupled\nfrom the raw model log but still auditable back to it.",
+      "properties": {
+        "discovered_at": {
+          "format": "date-time",
+          "title": "Discovered At",
+          "type": "string"
+        },
+        "discovery_run_id": {
+          "title": "Discovery Run Id",
+          "type": "string"
+        },
+        "goal": {
+          "title": "Goal",
+          "type": "string"
+        },
+        "human_edited": {
+          "default": false,
+          "title": "Human Edited",
+          "type": "boolean"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "transcript_sha256": {
+          "title": "Transcript Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "discovered_at",
+        "model",
+        "goal",
+        "discovery_run_id",
+        "transcript_sha256"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "Read": {
+      "properties": {
+        "attribute": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attribute"
+        },
+        "into": {
+          "title": "Into",
+          "type": "string"
+        },
+        "type": {
+          "const": "read",
+          "default": "read",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "into"
+      ],
+      "title": "Read",
+      "type": "object"
+    },
+    "RecoveryAction": {
+      "properties": {
+        "do": {
+          "enum": [
+            "dismiss_dialog",
+            "retry_step",
+            "reload",
+            "wait"
+          ],
+          "title": "Do",
+          "type": "string"
+        },
+        "target_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Name"
+        },
+        "target_role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Role"
+        }
+      },
+      "required": [
+        "do"
+      ],
+      "title": "RecoveryAction",
+      "type": "object"
+    },
+    "RecoveryBudget": {
+      "properties": {
+        "max_depth": {
+          "const": 1,
+          "default": 1,
+          "title": "Max Depth",
+          "type": "integer"
+        },
+        "per_run": {
+          "default": 5,
+          "title": "Per Run",
+          "type": "integer"
+        }
+      },
+      "title": "RecoveryBudget",
+      "type": "object"
+    },
+    "RoleName": {
+      "description": "An element with this accessibility role and accessible name is\npresent (and, if `visible`, currently visible).",
+      "properties": {
+        "kind": {
+          "const": "role_name",
+          "default": "role_name",
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "visible": {
+          "default": true,
+          "title": "Visible",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "role",
+        "name"
+      ],
+      "title": "RoleName",
+      "type": "object"
+    },
+    "RoleNameStrategy": {
+      "description": "Layer 1: accessibility role + accessible name. Portable across web\nand desktop; survives markup and layout changes.",
+      "properties": {
+        "layer": {
+          "const": 1,
+          "default": 1,
+          "title": "Layer",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "rationale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rationale"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "type": {
+          "const": "role_name",
+          "default": "role_name",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "name"
+      ],
+      "title": "RoleNameStrategy",
+      "type": "object"
+    },
+    "RuntimeMatch": {
+      "description": "One recognised non-happy-path state. Business-outcome and recoverable\nentries live in ONE list here (not split across a capability-level\noutcomes list and per-step error rules) so replay has a single ordered\nthing to check, terminal entries first, before it ever asserts a step's\nown checkpoint (see replay/engine.py in a later phase).",
+      "properties": {
+        "after_step": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "After Step"
+        },
+        "category": {
+          "enum": [
+            "business_outcome",
+            "recoverable",
+            "hard_failure"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "detect": {
+          "discriminator": {
+            "mapping": {
+              "named_predicate": "#/$defs/NamedPredicate",
+              "role_name": "#/$defs/RoleName",
+              "text_contains": "#/$defs/TextContains",
+              "url_matches": "#/$defs/UrlMatches",
+              "value_equals": "#/$defs/ValueEquals"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/TextContains"
+            },
+            {
+              "$ref": "#/$defs/RoleName"
+            },
+            {
+              "$ref": "#/$defs/UrlMatches"
+            },
+            {
+              "$ref": "#/$defs/ValueEquals"
+            },
+            {
+              "$ref": "#/$defs/NamedPredicate"
+            }
+          ],
+          "title": "Detect"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "max_retries": {
+          "default": 2,
+          "title": "Max Retries",
+          "type": "integer"
+        },
+        "recovery": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RecoveryAction"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "result_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Result Code"
+        },
+        "result_outputs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Result Outputs",
+          "type": "array"
+        },
+        "terminal": {
+          "title": "Terminal",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "category",
+        "terminal",
+        "detect"
+      ],
+      "title": "RuntimeMatch",
+      "type": "object"
+    },
+    "Select": {
+      "properties": {
+        "by": {
+          "default": "label",
+          "enum": [
+            "label",
+            "value",
+            "index"
+          ],
+          "title": "By",
+          "type": "string"
+        },
+        "type": {
+          "const": "select",
+          "default": "select",
+          "title": "Type",
+          "type": "string"
+        },
+        "value_from": {
+          "title": "Value From",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value_from"
+      ],
+      "title": "Select",
+      "type": "object"
+    },
+    "Step": {
+      "properties": {
+        "action": {
+          "discriminator": {
+            "mapping": {
+              "click": "#/$defs/Click",
+              "navigate": "#/$defs/Navigate",
+              "read": "#/$defs/Read",
+              "select": "#/$defs/Select",
+              "type": "#/$defs/TypeText",
+              "wait": "#/$defs/Wait"
+            },
+            "propertyName": "type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Navigate"
+            },
+            {
+              "$ref": "#/$defs/Click"
+            },
+            {
+              "$ref": "#/$defs/TypeText"
+            },
+            {
+              "$ref": "#/$defs/Select"
+            },
+            {
+              "$ref": "#/$defs/Read"
+            },
+            {
+              "$ref": "#/$defs/Wait"
+            }
+          ],
+          "title": "Action"
+        },
+        "checkpoint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Checkpoint"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "intent": {
+          "title": "Intent",
+          "type": "string"
+        },
+        "risk_level": {
+          "enum": [
+            "SAFE_READ",
+            "REVERSIBLE_WRITE",
+            "IRREVERSIBLE"
+          ],
+          "title": "Risk Level",
+          "type": "string"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Target"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "wait": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WaitSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "intent",
+        "action",
+        "risk_level"
+      ],
+      "title": "Step",
+      "type": "object"
+    },
+    "Target": {
+      "properties": {
+        "strategies": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "bbox": "#/$defs/BboxStrategy",
+                "css": "#/$defs/CssStrategy",
+                "label_anchor": "#/$defs/LabelAnchorStrategy",
+                "role_name": "#/$defs/RoleNameStrategy"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/RoleNameStrategy"
+              },
+              {
+                "$ref": "#/$defs/LabelAnchorStrategy"
+              },
+              {
+                "$ref": "#/$defs/CssStrategy"
+              },
+              {
+                "$ref": "#/$defs/BboxStrategy"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Strategies",
+          "type": "array"
+        }
+      },
+      "required": [
+        "strategies"
+      ],
+      "title": "Target",
+      "type": "object"
+    },
+    "TextContains": {
+      "properties": {
+        "kind": {
+          "const": "text_contains",
+          "default": "text_contains",
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "$ref": "#/$defs/TextMatcher"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "TextContains",
+      "type": "object"
+    },
+    "TextMatcher": {
+      "properties": {
+        "ignore_case": {
+          "default": true,
+          "title": "Ignore Case",
+          "type": "boolean"
+        },
+        "mode": {
+          "default": "contains",
+          "enum": [
+            "equals",
+            "contains",
+            "regex",
+            "not_contains"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "TextMatcher",
+      "type": "object"
+    },
+    "TypeText": {
+      "properties": {
+        "clear_first": {
+          "default": true,
+          "title": "Clear First",
+          "type": "boolean"
+        },
+        "submit": {
+          "default": false,
+          "title": "Submit",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "type",
+          "default": "type",
+          "title": "Type",
+          "type": "string"
+        },
+        "value_from": {
+          "title": "Value From",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value_from"
+      ],
+      "title": "TypeText",
+      "type": "object"
+    },
+    "UrlMatches": {
+      "properties": {
+        "kind": {
+          "const": "url_matches",
+          "default": "url_matches",
+          "title": "Kind",
+          "type": "string"
+        },
+        "pattern": {
+          "title": "Pattern",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pattern"
+      ],
+      "title": "UrlMatches",
+      "type": "object"
+    },
+    "ValueEquals": {
+      "description": "A form control's current value equals an expected, possibly templated string.",
+      "properties": {
+        "expected_template": {
+          "title": "Expected Template",
+          "type": "string"
+        },
+        "kind": {
+          "const": "value_equals",
+          "default": "value_equals",
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "name",
+        "expected_template"
+      ],
+      "title": "ValueEquals",
+      "type": "object"
+    },
+    "Wait": {
+      "description": "A step whose entire purpose is to wait -- distinct from `WaitSpec`\nbelow, which any step can carry as a pre-condition.",
+      "properties": {
+        "type": {
+          "const": "wait",
+          "default": "wait",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "Wait",
+      "type": "object"
+    },
+    "WaitSpec": {
+      "description": "Explicit, bounded wait attached to any step -- never a bare sleep.\nExhausting this without `until` holding routes to the recoverable\nbranch at replay time, not straight to a hard failure.",
+      "properties": {
+        "timeout_ms": {
+          "default": 10000,
+          "title": "Timeout Ms",
+          "type": "integer"
+        },
+        "until": {
+          "discriminator": {
+            "mapping": {
+              "named_predicate": "#/$defs/NamedPredicate",
+              "role_name": "#/$defs/RoleName",
+              "text_contains": "#/$defs/TextContains",
+              "url_matches": "#/$defs/UrlMatches",
+              "value_equals": "#/$defs/ValueEquals"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/TextContains"
+            },
+            {
+              "$ref": "#/$defs/RoleName"
+            },
+            {
+              "$ref": "#/$defs/UrlMatches"
+            },
+            {
+              "$ref": "#/$defs/ValueEquals"
+            },
+            {
+              "$ref": "#/$defs/NamedPredicate"
+            }
+          ],
+          "title": "Until"
+        }
+      },
+      "required": [
+        "until"
+      ],
+      "title": "WaitSpec",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "app_profile": {
+      "$ref": "#/$defs/AppProfile"
+    },
+    "capability_id": {
+      "title": "Capability Id",
+      "type": "string"
+    },
+    "inputs": {
+      "items": {
+        "$ref": "#/$defs/ParamSpec"
+      },
+      "title": "Inputs",
+      "type": "array"
+    },
+    "outputs": {
+      "items": {
+        "$ref": "#/$defs/OutputSpec"
+      },
+      "title": "Outputs",
+      "type": "array"
+    },
+    "possible_outcomes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Possible Outcomes",
+      "type": "array"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "recovery_budget": {
+      "$ref": "#/$defs/RecoveryBudget"
+    },
+    "runtime_matches": {
+      "items": {
+        "$ref": "#/$defs/RuntimeMatch"
+      },
+      "title": "Runtime Matches",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "default": "draft",
+      "enum": [
+        "draft",
+        "approved"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/Step"
+      },
+      "minItems": 1,
+      "title": "Steps",
+      "type": "array"
+    },
+    "success_condition": {
+      "$ref": "#/$defs/Checkpoint"
+    },
+    "summary": {
+      "title": "Summary",
+      "type": "string"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "version": {
+      "default": 1,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "capability_id",
+    "title",
+    "summary",
+    "app_profile",
+    "steps",
+    "success_condition",
+    "provenance"
+  ],
+  "title": "Capability",
+  "type": "object"
+}
