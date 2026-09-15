@@ -355,6 +355,14 @@ counts against that matcher's retries, and exhausting them is a hard failure. Os
 a main flow and a recovery flow is therefore impossible by construction rather than caught by a
 counter, which matters because the counter is exactly what a nested recovery would evade.
 
+One recovery kind gets an additional, narrower guard: `retry_step` re-performs the step's own
+action, and a failed checkpoint does not prove that action didn't already take effect -- a slow
+POST looks identical to one that never fired. Retrying a `REVERSIBLE_WRITE` or `IRREVERSIBLE` step
+risks performing it twice (a double-submitted payment), so `retry_step` is refused outright on
+anything but a `SAFE_READ` step, checked both at artifact-validation time (when the step is named
+statically by `after_step`) and again at replay time as a backstop for an `after_step: null`
+matcher, which the schema can't check statically since it could land on any step.
+
 This class also absorbs what looks like a need for conditional branching. "A compliance notice
 appears on the first login of the month and not otherwise" needs no branch: it is a recoverable
 matcher, so it is dismissed when present and never matches when absent. Optional interstitials

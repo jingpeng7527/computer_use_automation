@@ -106,7 +106,8 @@
             "param_invalid",
             "bounds_exceeded",
             "not_approved",
-            "session_lost"
+            "session_lost",
+            "recovery_refused"
           ],
           "title": "Kind",
           "type": "string"

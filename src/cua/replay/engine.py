@@ -548,6 +548,24 @@ def _apply_match(
         _stop_failed(state, step, kind="app_error", expected="a recovery action", observed=match.id)
         return
 
+    # Backstop for an after_step=None matcher, which the schema-level guard
+    # (Capability._referential_integrity) cannot check statically since it
+    # could land on any step. "retry_step" re-performs the step's own
+    # action; a checkpoint failing doesn't prove that action didn't already
+    # take effect (a slow POST looks identical), so retrying anything other
+    # than a SAFE_READ risks doing it twice -- e.g. a double-submitted
+    # payment. Verified against a real, currently-possible gap, not a
+    # hypothetical: nothing previously stopped this.
+    if match.recovery.do == "retry_step" and step.risk_level != "SAFE_READ":
+        _stop_failed(
+            state,
+            step,
+            kind="recovery_refused",
+            expected="a retry-eligible (SAFE_READ) step",
+            observed=f"{step.risk_level} step {step.id!r} declared do='retry_step'",
+        )
+        return
+
     state.recovery_used += 1
     state.match_retry_counts[match.id] = match_retries + 1
     if match.recovery.do == "dismiss_dialog" and match.recovery.target_role:

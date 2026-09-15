@@ -217,11 +217,34 @@ class Capability(BaseModel):
         match_dupes = sorted({i for i in match_ids if match_ids.count(i) > 1})
         if match_dupes:
             raise ValueError(f"duplicate runtime_match ids: {match_dupes}")
+        steps_by_id = {s.id: s for s in self.steps}
         for match in self.runtime_matches:
             if match.after_step is not None and match.after_step not in step_ids:
                 raise ValueError(
                     f"runtime_match {match.id!r} names unknown "
                     f"after_step={match.after_step!r}"
+                )
+            # "retry_step" re-performs the step's own action -- safe only when
+            # that action can't have already taken effect. A checkpoint
+            # failing does not prove a click didn't land (a slow POST looks
+            # identical), so retrying a REVERSIBLE_WRITE or IRREVERSIBLE step
+            # risks firing it twice (e.g. a double-submitted payment). Caught
+            # here, at validation time, when the step is known statically;
+            # replay/engine.py enforces the same rule at runtime as a
+            # backstop for an `after_step=None` matcher, which could still
+            # land on a non-SAFE_READ step.
+            if (
+                match.category == "recoverable"
+                and match.recovery is not None
+                and match.recovery.do == "retry_step"
+                and match.after_step is not None
+                and steps_by_id[match.after_step].risk_level != "SAFE_READ"
+            ):
+                raise ValueError(
+                    f"runtime_match {match.id!r} declares recovery.do='retry_step' on "
+                    f"step {match.after_step!r}, whose risk_level is "
+                    f"{steps_by_id[match.after_step].risk_level!r}, not 'SAFE_READ' -- "
+                    f"retrying a non-safe action risks performing it twice"
                 )
         return self
 
