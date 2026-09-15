@@ -357,11 +357,17 @@ counter, which matters because the counter is exactly what a nested recovery wou
 
 One recovery kind gets an additional, narrower guard: `retry_step` re-performs the step's own
 action, and a failed checkpoint does not prove that action didn't already take effect -- a slow
-POST looks identical to one that never fired. Retrying a `REVERSIBLE_WRITE` or `IRREVERSIBLE` step
-risks performing it twice (a double-submitted payment), so `retry_step` is refused outright on
-anything but a `SAFE_READ` step, checked both at artifact-validation time (when the step is named
-statically by `after_step`) and again at replay time as a backstop for an `after_step: null`
-matcher, which the schema can't check statically since it could land on any step.
+POST looks identical to one that never fired. Retrying a `Click`, `TypeText` or `Select` step risks
+performing it twice (a double-submitted payment), so `retry_step` is refused on any of those three,
+checked both at artifact-validation time (when the step is named statically by `after_step`) and
+again at replay time as a backstop for an `after_step: null` matcher, which the schema can't check
+statically since it could land on any step. The check reads the action's own discriminated `type`,
+never `Step.risk_level` -- that field is the same self-reported hint Section 6 already refuses to
+trust for risk tiering, and a hand-edited artifact declaring `risk_level: SAFE_READ` on a `Click`
+step would sail past a check keyed on it. `IRREVERSIBLE` needs no separate case: a retry recurses
+into the same step-execution path every attempt already goes through, so the ordinary risk gate
+refuses or escalates it before a checkpoint can even fail a second time -- there is no point at
+which `retry_step` on an `IRREVERSIBLE` step is ever actually reached.
 
 This class also absorbs what looks like a need for conditional branching. "A compliance notice
 appears on the first login of the month and not otherwise" needs no branch: it is a recoverable

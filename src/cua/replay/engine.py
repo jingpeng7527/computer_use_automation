@@ -548,21 +548,31 @@ def _apply_match(
         _stop_failed(state, step, kind="app_error", expected="a recovery action", observed=match.id)
         return
 
-    # Backstop for an after_step=None matcher, which the schema-level guard
-    # (Capability._referential_integrity) cannot check statically since it
-    # could land on any step. "retry_step" re-performs the step's own
-    # action; a checkpoint failing doesn't prove that action didn't already
-    # take effect (a slow POST looks identical), so retrying anything other
-    # than a SAFE_READ risks doing it twice -- e.g. a double-submitted
-    # payment. Verified against a real, currently-possible gap, not a
-    # hypothetical: nothing previously stopped this.
-    if match.recovery.do == "retry_step" and step.risk_level != "SAFE_READ":
+    # Structural, not a trust in step.risk_level (a self-reported hint --
+    # see the schema-level guard's comment in capability.py for why that
+    # field is never what a safety decision keys on): Click/TypeText/Select
+    # are never retry-eligible, determined by the action's own
+    # discriminated type, not a label that could be wrong. This is the
+    # backstop for an after_step=None matcher, which
+    # Capability._referential_integrity can't check statically since it
+    # could land on any step.
+    #
+    # IRREVERSIBLE needs no separate check here: "retry_step" falls through
+    # to a recursive _run_step() call below, which re-resolves the target
+    # and re-runs the SAME gate() every other execution goes through --
+    # gate() already ran once on this exact resolution earlier in THIS
+    # _run_step call (control could not have reached this far otherwise),
+    # and runs again, fresh, on the retry. An IRREVERSIBLE step is refused
+    # or escalated there, not retried past it -- adding a second
+    # classify_risk() call here would just re-check state gate() already
+    # checked, using the same (by now stale) resolution.
+    if match.recovery.do == "retry_step" and isinstance(step.action, (Click, TypeText, Select)):
         _stop_failed(
             state,
             step,
             kind="recovery_refused",
-            expected="a retry-eligible (SAFE_READ) step",
-            observed=f"{step.risk_level} step {step.id!r} declared do='retry_step'",
+            expected="a retry-eligible action (read / wait / navigate)",
+            observed=f"{step.action.type!r} step {step.id!r} declared do='retry_step'",
         )
         return
 

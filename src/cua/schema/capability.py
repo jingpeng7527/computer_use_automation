@@ -16,7 +16,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 
 from .common import Checkpoint, Condition, parse_ref
-from .steps import Read, Select, Step, TypeText
+from .steps import Click, Read, Select, Step, TypeText
 
 SCHEMA_VERSION = "1.0"
 
@@ -227,24 +227,37 @@ class Capability(BaseModel):
             # "retry_step" re-performs the step's own action -- safe only when
             # that action can't have already taken effect. A checkpoint
             # failing does not prove a click didn't land (a slow POST looks
-            # identical), so retrying a REVERSIBLE_WRITE or IRREVERSIBLE step
-            # risks firing it twice (e.g. a double-submitted payment). Caught
-            # here, at validation time, when the step is known statically;
-            # replay/engine.py enforces the same rule at runtime as a
-            # backstop for an `after_step=None` matcher, which could still
-            # land on a non-SAFE_READ step.
+            # identical), so retrying Click/TypeText/Select risks firing it
+            # twice (e.g. a double-submitted payment).
+            #
+            # Keyed on the action's own TYPE, not `step.risk_level`: that
+            # field is a discovered HINT the artifact author writes down
+            # (schema/steps.py's own docstring says so), and this file's own
+            # design principle elsewhere (系统设计 P5: 权限不由数据自报) is
+            # that safety decisions never trust a self-reported field --
+            # replay/engine.py's classify_risk() already re-derives risk
+            # independently rather than reading Step.risk_level for exactly
+            # this reason. A hand-edited or mis-compiled artifact could set
+            # risk_level="SAFE_READ" on a Click step with nothing here to
+            # catch it; the action's discriminated `type` is not a hint, it
+            # is what actually executes, so it can't be mislabelled the same
+            # way. Read/Wait/Navigate stay retry-eligible in principle, but
+            # replay/engine.py still independently re-checks classify_risk()
+            # at the moment of retry, since a Navigate can resolve to an
+            # IRREVERSIBLE destination the schema can't see statically.
             if (
                 match.category == "recoverable"
                 and match.recovery is not None
                 and match.recovery.do == "retry_step"
                 and match.after_step is not None
-                and steps_by_id[match.after_step].risk_level != "SAFE_READ"
+                and isinstance(steps_by_id[match.after_step].action, (Click, TypeText, Select))
             ):
                 raise ValueError(
                     f"runtime_match {match.id!r} declares recovery.do='retry_step' on "
-                    f"step {match.after_step!r}, whose risk_level is "
-                    f"{steps_by_id[match.after_step].risk_level!r}, not 'SAFE_READ' -- "
-                    f"retrying a non-safe action risks performing it twice"
+                    f"step {match.after_step!r}, whose action is "
+                    f"{steps_by_id[match.after_step].action.type!r} -- retrying "
+                    f"click/type/select risks performing it twice, since a failed "
+                    f"checkpoint doesn't prove the action didn't already take effect"
                 )
         return self
 

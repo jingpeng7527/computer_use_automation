@@ -14,6 +14,22 @@ a schema-level guard when the offending step is known statically
 (Capability._referential_integrity), and a replay-time backstop for an
 after_step=None matcher, which the schema can't check statically since it
 could land on any step.
+
+Both are keyed on the step's ACTION TYPE (Click/TypeText/Select), not on
+Step.risk_level -- a second, sharper fix after the first version of this
+guard shipped trusting risk_level, which is exactly the kind of
+self-reported field this codebase's own design principle (系统设计 P5:
+权限不由数据自报) says a safety decision must never trust. A mislabelled
+or hand-edited artifact could declare risk_level="SAFE_READ" on a Click
+step with nothing to catch it under the first version; action.type can't
+be mislabelled the same way, since it's what actually executes.
+
+IRREVERSIBLE gets no separate check here at all -- it needs none. Retrying
+falls through to a recursive _run_step() call, which re-resolves the
+target and re-runs the SAME gate() every execution goes through; an
+IRREVERSIBLE step is refused or escalated there on the very first attempt,
+before a checkpoint can even fail, so it never reaches a point where
+retry_step could fire.
 """
 
 from __future__ import annotations
@@ -68,7 +84,7 @@ def _capability_with_retry_on_a_click_step(*, after_step: str | None) -> dict:
         "steps": [
             Step(
                 id="s0",
-                intent="click save -- REVERSIBLE_WRITE, not idempotent",
+                intent="click save -- not idempotent regardless of its risk_level label",
                 action=Click(),
                 risk_level="REVERSIBLE_WRITE",
                 target=Target(strategies=[RoleNameStrategy(role="button", name="Save Changes")]),
@@ -113,19 +129,29 @@ def _capability_with_retry_on_a_click_step(*, after_step: str | None) -> dict:
     }
 
 
-def test_schema_rejects_retry_step_on_a_non_safe_step_statically() -> None:
-    """The offending step (s0, REVERSIBLE_WRITE) is known at validation time
-    -- this must be caught before the artifact can even be saved or
-    approved, not discovered later during a live replay."""
+def test_schema_rejects_retry_step_on_a_click_step_statically() -> None:
+    """The offending step (s0, a Click) is known at validation time -- this
+    must be caught before the artifact can even be saved or approved, not
+    discovered later during a live replay."""
     with pytest.raises(ValidationError, match="retry_step"):
         Capability.model_validate(_capability_with_retry_on_a_click_step(after_step="s0"))
 
 
-def test_schema_allows_retry_step_on_a_safe_read_step() -> None:
-    # after_step="s1" (SAFE_READ) -- this is exactly the legitimate case
+def test_schema_allows_retry_step_on_a_read_step() -> None:
+    # after_step="s1" (a Read) -- this is exactly the legitimate case
     # (retry a flaky read), and must not be rejected.
     cap = Capability.model_validate(_capability_with_retry_on_a_click_step(after_step="s1"))
     assert cap.runtime_matches[0].after_step == "s1"
+
+
+def test_schema_rejects_retry_step_on_a_click_even_when_mislabelled_safe_read() -> None:
+    """The exact bypass a self-reported risk_level would allow: a Click step
+    hand-labelled risk_level="SAFE_READ" must still be refused, because the
+    guard reads the action's own type, never the label."""
+    bad = _capability_with_retry_on_a_click_step(after_step="s0")
+    bad["steps"][0]["risk_level"] = "SAFE_READ"  # the mislabel
+    with pytest.raises(ValidationError, match="retry_step"):
+        Capability.model_validate(bad)
 
 
 class _DialogThenGoneAdapter:
@@ -162,9 +188,9 @@ class _DialogThenGoneAdapter:
 
 def test_replay_refuses_retry_step_at_runtime_when_after_step_is_none() -> None:
     """The dynamic backstop: after_step=None means this matcher could apply
-    to ANY step, including the non-SAFE_READ s0, so the schema-level guard
-    (which only checks a statically-named after_step) can't catch this one
-    -- replay itself must refuse it instead of silently re-clicking it."""
+    to ANY step, so the schema-level guard (which only checks a
+    statically-named after_step) can't catch this one -- replay itself
+    must refuse it instead of silently re-clicking it."""
     capability = Capability.model_validate(_capability_with_retry_on_a_click_step(after_step=None))
     adapter = _DialogThenGoneAdapter()
 
@@ -173,3 +199,90 @@ def test_replay_refuses_retry_step_at_runtime_when_after_step_is_none() -> None:
     assert result.status == "failed"
     assert result.failure.kind == "recovery_refused"
     assert adapter.click_count == 1  # the original click, never a re-click of Save Changes
+
+
+class _IrreversibleReadAdapter:
+    """A Read step whose resolved node's name happens to match an
+    irreversible name_contains phrase (policy.yaml: "confirm")."""
+
+    def observe(self):
+        return [_node(role="button", name="Confirm Transfer", node_id="n_confirm")]
+
+    def resolve(self, target):
+        return ResolutionResult(resolved=False, attempts=[])
+
+    def act(self, action, resolution=None, value=None):
+        return "irrelevant"
+
+    def wait_for(self, condition, timeout_ms):
+        return True
+
+    def location(self):
+        return HERE
+
+    def screenshot(self, path):
+        pass
+
+
+def test_an_irreversible_step_never_even_reaches_retry_step() -> None:
+    """"IRREVERSIBLE never retries" doesn't need a special case inside the
+    recovery guard: gate() runs before _act() on every attempt, including
+    the retry's own recursive re-entry into _run_step, so an IRREVERSIBLE
+    step is refused there and never reaches a point where retry_step could
+    fire at all -- even though this step's action.type is "read" (which the
+    structural guard above would otherwise allow) and it declares a
+    retry_step recovery. The declared recovery is simply never consulted."""
+    capability = Capability.model_validate(
+        {
+            "capability_id": "test.irreversible_read",
+            "status": "approved",
+            "title": "x",
+            "summary": "x",
+            "app_profile": AppProfile(product="t", version="0").model_dump(mode="json"),
+            "outputs": [
+                OutputSpec(name="x", type="string", description="d", source_step_id="s0").model_dump(
+                    mode="json"
+                )
+            ],
+            "steps": [
+                Step(
+                    id="s0",
+                    intent="read the confirm-transfer control's state",
+                    action=Read(into="x"),
+                    risk_level="SAFE_READ",
+                    target=Target(strategies=[RoleNameStrategy(role="button", name="Confirm Transfer")]),
+                    checkpoint=Checkpoint(
+                        description="unreachable", all_of=[RoleName(role="heading", name="Done")]
+                    ),
+                ).model_dump(mode="json")
+            ],
+            "runtime_matches": [
+                RuntimeMatch(
+                    id="slow_load",
+                    category="recoverable",
+                    terminal=False,
+                    detect=RoleName(role="button", name="Confirm Transfer"),
+                    after_step=None,
+                    recovery=RecoveryAction(do="retry_step"),
+                ).model_dump(mode="json")
+            ],
+            "possible_outcomes": [],
+            "success_condition": Checkpoint(
+                description="unreachable", all_of=[RoleName(role="heading", name="Done")]
+            ).model_dump(mode="json"),
+            "provenance": Provenance(
+                discovered_at=datetime.now(UTC),
+                model="test",
+                goal="test",
+                discovery_run_id="test",
+                transcript_sha256="0" * 64,
+            ).model_dump(mode="json"),
+        }
+    )
+
+    result = replay(capability, {}, _IrreversibleReadAdapter(), POLICY, run_id="test-run")
+
+    # policy.yaml ships irreversible_policy: refuse -- a hard failure, never
+    # an escalation and never a retry_step recovery attempt.
+    assert result.status == "failed"
+    assert result.failure.kind == "policy_blocked"
