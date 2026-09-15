@@ -622,12 +622,49 @@ def overlay_apply(
     )
 
 
+def _navigate_targets_outside_scope(capability, app_profile_data: dict) -> list[str]:
+    """Best-effort pre-flight for `cua set-scope`: checks every step whose
+    action is a Navigate with a LITERAL (non-templated) url_template
+    against the scope about to be saved, using the exact same narrowing
+    check replay enforces (safety.check_app_profile_scope) so this can
+    never drift from what would actually happen at replay time.
+
+    Deliberately partial: a step that reaches a new page by clicking a
+    link (this project's own capability does exactly that for its detail
+    page) has no literal URL recorded in the artifact at all -- its
+    destination is only known by actually running the flow, which this
+    command does not do. This catches the entry point and any other
+    literal Navigate being scoped out from under itself; it does not
+    guarantee every step in the capability still works."""
+    from urllib.parse import urlparse
+
+    from cua.safety import check_app_profile_scope
+    from cua.schema import AppProfile, Navigate
+
+    profile = AppProfile.model_validate(app_profile_data)
+    problems = []
+    for step in capability.steps:
+        if not isinstance(step.action, Navigate):
+            continue
+        url = step.action.url_template
+        if "{{" in url:
+            continue  # not a literal -- can't be statically resolved here
+        path = urlparse(url).path or "/"
+        decision = check_app_profile_scope(url, path, profile)
+        if not decision.allowed:
+            problems.append(f"step {step.id!r} navigates to {url!r}: {decision.reason}")
+    return problems
+
+
 @app.command("set-scope")
 def set_scope(
     artifact: str = typer.Option(..., help="Path to a saved capability artifact (JSON)."),
     base_url: str = typer.Option(None, help="Restrict this capability to destinations starting with this URL."),
     allowed_route_pattern: list[str] = typer.Option(
         None, "--allowed-route-pattern", help="Glob route pattern this capability may touch (repeatable)."
+    ),
+    force: bool = typer.Option(
+        False, help="Save even if this scope would already block one of this capability's own literal Navigate steps."
     ),
 ) -> None:
     """Declare a capability's own expected scope -- an ADDITIONAL narrowing
@@ -637,7 +674,15 @@ def set_scope(
     without cross-referencing policy.yaml. Resets status to draft: this
     changes the enforced boundary the capability runs inside, which is
     exactly the kind of change the approval gate exists to have a human
-    look at again."""
+    look at again.
+
+    Refuses (fail-loud, not just fail-safe) to save a scope that would
+    already block one of this capability's own literal Navigate targets --
+    without this check, that mistake would only surface later, mid-replay,
+    as a `policy_blocked` failure on whichever step hit it first. Pass
+    --force to save anyway. This check is necessarily partial: a
+    click-driven destination has no literal URL in the artifact to check
+    (see _navigate_targets_outside_scope's docstring)."""
     from pathlib import Path
 
     from pydantic import ValidationError
@@ -654,6 +699,24 @@ def set_scope(
         app_profile["base_url"] = base_url
     if allowed_route_pattern:
         app_profile["allowed_route_patterns"] = allowed_route_pattern
+
+    problems = _navigate_targets_outside_scope(capability, app_profile)
+    if problems:
+        color = typer.colors.YELLOW if force else typer.colors.RED
+        typer.secho(
+            "this scope already excludes one of this capability's own literal Navigate steps:", fg=color
+        )
+        for problem in problems:
+            typer.secho(f"  {problem}", fg=color)
+        typer.secho(
+            "(only literal Navigate targets are checkable here -- a click-driven destination has no "
+            "URL recorded in the artifact to check against)",
+            fg=color,
+        )
+        if not force:
+            typer.secho("refusing to save. Pass --force to save anyway.", fg=typer.colors.RED)
+            raise typer.Exit(code=1)
+        typer.secho("--force given: saving anyway.", fg=typer.colors.YELLOW)
 
     try:
         updated = Capability.model_validate(

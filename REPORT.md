@@ -754,6 +754,22 @@ allowlist (which would have allowed that path fine). `cua set-scope` is the CLI 
 declares this on an artifact; like `cua tag-output`, it resets status to `draft`, since it changes
 the enforced boundary the capability runs inside.
 
+A known sharp edge, fixed rather than left as a footnote: `cua set-scope` originally had no
+pre-flight of its own -- it would happily save a scope that already excluded one of the
+capability's own steps, and the mistake would only surface later, mid-replay, as `policy_blocked`
+on whichever step hit it first. Fail-safe (nothing was ever wrongly *allowed*), but not fail-loud
+(the mistake wasn't reported where it was made). The command now checks every step whose action is
+a Navigate with a literal (non-templated) URL against the scope it's about to save, using the same
+`check_app_profile_scope` replay itself calls, and refuses -- unless `--force` -- if any would
+already be excluded. Necessarily partial: a step that reaches a page by clicking a link (this
+project's own capability does exactly that for its detail page) has no literal URL recorded in the
+artifact to check at all; that class of mistake still only surfaces at replay time.
+`tests/test_set_scope_preflight.py` covers refuse / `--force` / already-consistent / can't-check-a-
+template, and it's verified live: pointing `cua set-scope` at the real
+`acme_core.lookup_savings_balance` artifact with `--allowed-route-pattern "/tenant-b/*"` refuses
+immediately, naming step `s0`'s own entry URL as the conflict, rather than saving silently and
+waiting for the next replay to fail.
+
 **Risk tiers.** Every action carries a level, and the executor gates on it:
 
 | Tier | Examples | Unattended replay |

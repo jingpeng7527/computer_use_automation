@@ -64,17 +64,32 @@ def check_allowed(
         return AllowlistDecision(False, f"path {path!r} is outside the allowed prefixes")
 
     if app_profile is not None:
-        if app_profile.base_url and not full.startswith(app_profile.base_url):
-            return AllowlistDecision(
-                False, f"{full!r} is outside this capability's own declared base_url {app_profile.base_url!r}"
-            )
-        if app_profile.allowed_route_patterns and not any(
-            fnmatch.fnmatch(path, pattern) for pattern in app_profile.allowed_route_patterns
-        ):
-            return AllowlistDecision(
-                False,
-                f"path {path!r} is outside this capability's own declared "
-                f"allowed_route_patterns {app_profile.allowed_route_patterns!r}",
-            )
+        decision = check_app_profile_scope(full, path, app_profile)
+        if not decision.allowed:
+            return decision
 
+    return AllowlistDecision(True)
+
+
+def check_app_profile_scope(full: str, path: str, app_profile: AppProfile) -> AllowlistDecision:
+    """Just the app_profile-narrowing half of check_allowed(), factored out
+    so it can be checked on its own -- notably by `cua set-scope`, which
+    has a capability's own steps but no live location or global Policy to
+    build a full check_allowed() call around. `full` is the complete URL
+    being checked; `path` is that URL's path component (callers that
+    already computed one from a Policy's own origin match, as check_allowed
+    does above, should pass that; a standalone caller can get one from
+    `urllib.parse.urlparse(full).path or "/"`)."""
+    if app_profile.base_url and not full.startswith(app_profile.base_url):
+        return AllowlistDecision(
+            False, f"{full!r} is outside this capability's own declared base_url {app_profile.base_url!r}"
+        )
+    if app_profile.allowed_route_patterns and not any(
+        fnmatch.fnmatch(path, pattern) for pattern in app_profile.allowed_route_patterns
+    ):
+        return AllowlistDecision(
+            False,
+            f"path {path!r} is outside this capability's own declared "
+            f"allowed_route_patterns {app_profile.allowed_route_patterns!r}",
+        )
     return AllowlistDecision(True)

@@ -6,7 +6,7 @@ authorise its own actions (REPORT.md sec 6).
 
 from __future__ import annotations
 
-from .allowlist import AllowlistDecision, check_allowed
+from .allowlist import AllowlistDecision, check_allowed, check_app_profile_scope
 from .bounds import BoundExceeded, ExecutionGuard
 from .policy import ErrorClassification, ExecutionBounds, KeepAlive, Policy, load_policy
 from .redaction import mask, redact_ctx_value, redact_text, redact_value
@@ -23,6 +23,7 @@ __all__ = [
     "RiskDecision",
     "RiskTier",
     "check_allowed",
+    "check_app_profile_scope",
     "classify_risk",
     "gate",
     "load_policy",
