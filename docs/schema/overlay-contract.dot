@@ -15,15 +15,19 @@ digraph schema {
     label="Override operations"; color="#b9c6d8"; penwidth=1; style="rounded";
     "InsertAfter" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>InsertAfter</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">op?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">step_id: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">step: object</FONT></TD></TR></TABLE>>];
     "ReplaceTarget" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>ReplaceTarget</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">op?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">step_id: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">target: Target</FONT></TD></TR></TABLE>>];
+    "ReplaceValue" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>ReplaceValue</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">op?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">step_id: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">value: string</FONT></TD></TR></TABLE>>];
     "Skip" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>Skip</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">op?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">step_id: string</FONT></TD></TR></TABLE>>];
   }
   subgraph cluster_2 {
     label="Overlay"; color="#b9c6d8"; penwidth=1; style="rounded";
-    "Overlay" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>Overlay</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">extends: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">tenant_id: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">overrides?: list[InsertAfter, ReplaceTarget, Skip]</FONT></TD></TR></TABLE>>];
+    "Overlay" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>Overlay</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">extends: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">tenant_id: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">overrides?: list[InsertAfter, ReplaceTarget, ReplaceValue, Skip]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">add_inputs?: list[ParamSpec]</FONT></TD></TR></TABLE>>];
+    "ParamSpec" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>ParamSpec</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">name: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">type: enum</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">required?: boolean</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">description: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">pattern?: scalar</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">enum_values?: scalar</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">sensitivity?: enum</FONT></TD></TR></TABLE>>];
   }
   "Overlay" -> "InsertAfter" [label="overrides"];
   "Overlay" -> "ReplaceTarget" [label="overrides"];
+  "Overlay" -> "ReplaceValue" [label="overrides"];
   "Overlay" -> "Skip" [label="overrides"];
+  "Overlay" -> "ParamSpec" [label="add_inputs"];
   "ReplaceTarget" -> "Target" [label="target"];
   "Target" -> "BboxStrategy" [label="strategies"];
   "Target" -> "CssStrategy" [label="strategies"];

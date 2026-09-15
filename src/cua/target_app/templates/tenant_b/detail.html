@@ -1,0 +1,15 @@
+<!doctype html>
+<html>
+<head><title>Member Detail</title></head>
+<body>
+<h1>Member Detail</h1>
+<!-- Heading text matches the base tenant on purpose -- the checkpoint and
+     success_condition that assert on it need no override. The savings row
+     label does not match ("SAV BAL" vs "Savings Balance"), which does. -->
+<table border="1">
+  <tr><td>Acct/Member #</td><td>{{ member_id }}</td></tr>
+  <tr><td>Name</td><td>{{ member.name }}</td></tr>
+  <tr><td>SAV BAL</td><td>${{ "%.2f"|format(member.savings_balance_minor / 100) }} {{ member.currency }}</td></tr>
+</table>
+</body>
+</html>

@@ -103,8 +103,8 @@ OVERLAY = DiagramSpec(
     title="Tenant overlay contract",
     model=Overlay,
     clusters={
-        "Overlay": ("Overlay",),
-        "Override operations": ("ReplaceTarget", "InsertAfter", "Skip"),
+        "Overlay": ("Overlay", "ParamSpec"),
+        "Override operations": ("ReplaceTarget", "ReplaceValue", "InsertAfter", "Skip"),
         "Target resolution": (
             "Target",
             "RoleNameStrategy",

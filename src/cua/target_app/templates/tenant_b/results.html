@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+<head><title>Search Results</title></head>
+<body>
+<h1>Search Results</h1>
+<!-- Column order and the detail control's class/text both differ from the
+     base tenant on purpose -- role/name targeting (the "Search" button on
+     the previous page) survives this; a css selector recorded against the
+     base tenant's markup would not. -->
+<table border="1">
+  <tr><th></th><th>Name</th><th>Acct #</th></tr>
+  <tr>
+    <td>
+      <div class="detail-link" onclick="location.href='/tenant-b/members/{{ member_id }}/detail'">Details</div>
+    </td>
+    <td>{{ member.name }}</td>
+    <td>{{ member_id }}</td>
+  </tr>
+</table>
+</body>
+</html>

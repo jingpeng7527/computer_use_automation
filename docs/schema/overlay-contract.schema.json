@@ -170,6 +170,79 @@
       "title": "LabelAnchorStrategy",
       "type": "object"
     },
+    "ParamSpec": {
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "enum_values": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enum Values"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "pattern": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pattern"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "sensitivity": {
+          "default": "none",
+          "enum": [
+            "none",
+            "pii",
+            "sensitive"
+          ],
+          "title": "Sensitivity",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "string",
+            "integer",
+            "boolean",
+            "date",
+            "enum",
+            "money"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "description"
+      ],
+      "title": "ParamSpec",
+      "type": "object"
+    },
     "ReplaceTarget": {
       "properties": {
         "op": {
@@ -191,6 +264,31 @@
         "target"
       ],
       "title": "ReplaceTarget",
+      "type": "object"
+    },
+    "ReplaceValue": {
+      "description": "Overrides a step's own literal action value -- e.g. a Navigate\nstep's url_template. Distinct from ReplaceTarget: a target says how to\nFIND a control on the page; this says what literal value the step's\nown action carries (the entry route itself is the concrete case this\nexists for -- see the second tenant fixture in tests/evidence).",
+      "properties": {
+        "op": {
+          "const": "replace_value",
+          "default": "replace_value",
+          "title": "Op",
+          "type": "string"
+        },
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step_id",
+        "value"
+      ],
+      "title": "ReplaceValue",
       "type": "object"
     },
     "RoleNameStrategy": {
@@ -296,6 +394,13 @@
     }
   },
   "properties": {
+    "add_inputs": {
+      "items": {
+        "$ref": "#/$defs/ParamSpec"
+      },
+      "title": "Add Inputs",
+      "type": "array"
+    },
     "extends": {
       "title": "Extends",
       "type": "string"
@@ -306,6 +411,7 @@
           "mapping": {
             "insert_after": "#/$defs/InsertAfter",
             "replace_target": "#/$defs/ReplaceTarget",
+            "replace_value": "#/$defs/ReplaceValue",
             "skip": "#/$defs/Skip"
           },
           "propertyName": "op"
@@ -313,6 +419,9 @@
         "oneOf": [
           {
             "$ref": "#/$defs/ReplaceTarget"
+          },
+          {
+            "$ref": "#/$defs/ReplaceValue"
           },
           {
             "$ref": "#/$defs/InsertAfter"

@@ -1,0 +1,75 @@
+{
+  "capability_id": "acme_core.lookup_savings_balance.cu_northgate",
+  "capability_version": 1,
+  "run_id": "replay-20260915221443",
+  "status": "success",
+  "outputs": {
+    "savings_balance": {
+      "amount_minor": 815000,
+      "currency": "USD"
+    }
+  },
+  "outcome": null,
+  "failure": null,
+  "escalation": null,
+  "steps": [
+    {
+      "step_id": "s0",
+      "intent": "navigate to http://127.0.0.1:8800/members/search",
+      "status": "ok",
+      "locator_layer_hit": null,
+      "recoveries_applied": [],
+      "duration_ms": 175,
+      "extracted": {}
+    },
+    {
+      "step_id": "s0b",
+      "intent": "select branch {{input.branch}}",
+      "status": "ok",
+      "locator_layer_hit": 2,
+      "recoveries_applied": [],
+      "duration_ms": 40,
+      "extracted": {}
+    },
+    {
+      "step_id": "s1",
+      "intent": "type {{input.member_id}}",
+      "status": "ok",
+      "locator_layer_hit": 2,
+      "recoveries_applied": [],
+      "duration_ms": 58,
+      "extracted": {}
+    },
+    {
+      "step_id": "s2",
+      "intent": "click 'Search'",
+      "status": "ok",
+      "locator_layer_hit": 1,
+      "recoveries_applied": [],
+      "duration_ms": 127,
+      "extracted": {}
+    },
+    {
+      "step_id": "s3",
+      "intent": "click 'View'",
+      "status": "ok",
+      "locator_layer_hit": 3,
+      "recoveries_applied": [],
+      "duration_ms": 112,
+      "extracted": {}
+    },
+    {
+      "step_id": "s4",
+      "intent": "read savings_balance",
+      "status": "ok",
+      "locator_layer_hit": 2,
+      "recoveries_applied": [],
+      "duration_ms": 20,
+      "extracted": {}
+    }
+  ],
+  "started_at": "2026-09-15T22:14:45.103733Z",
+  "ended_at": "2026-09-15T22:14:45.643753Z",
+  "evidence_dir": "evidence/replay-20260915221443",
+  "redactions": []
+}

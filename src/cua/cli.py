@@ -6,6 +6,7 @@
     cua approve          # promote a draft artifact to approved -- replay refuses drafts
     cua tag-output       # mark a declared output's sensitivity for replay-time redaction
     cua replay           # deterministic replay of an artifact (no LLM)
+    cua overlay apply    # resolve a base artifact + a tenant overlay -> a tenant artifact
     cua ops              # claim/release/status -- the human side of a handoff
     cua catalog          # list saved capability artifacts
 
@@ -29,6 +30,8 @@ load_dotenv()
 app = typer.Typer(add_completion=False, no_args_is_help=True, help=__doc__)
 ops_app = typer.Typer(add_completion=False, no_args_is_help=True, help="Claim/release control of a stuck run.")
 app.add_typer(ops_app, name="ops")
+overlay_app = typer.Typer(add_completion=False, no_args_is_help=True, help="Resolve tenant overlays.")
+app.add_typer(overlay_app, name="overlay")
 
 
 @app.command("serve-target")
@@ -572,6 +575,42 @@ def tag_output(
         f"tagged {name!r} as sensitivity={sensitivity!r}; saved to {saved_path} "
         f"(status: draft -- run `cua approve` before replay)",
         fg=typer.colors.YELLOW,
+    )
+
+
+@overlay_app.command("apply")
+def overlay_apply(
+    base: str = typer.Option(..., help="Path to the base capability artifact (JSON)."),
+    overlay: str = typer.Option(..., help="Path to the tenant overlay (JSON)."),
+) -> None:
+    """Resolve a base artifact + a tenant overlay into a concrete, tenant-
+    specific capability -- REPORT.md sec 4's multi-tenant reuse mechanism.
+    Never touches a browser: this is pure schema resolution, and every
+    existing Capability invariant (referential integrity, runtime_match
+    consistency, ...) is re-checked against the RESOLVED steps before
+    anything is saved. Always saves as status="draft" -- a resolved
+    overlay is new composition a human hasn't reviewed yet; approve it
+    like any other artifact before replaying it."""
+    from pathlib import Path
+
+    from pydantic import ValidationError
+
+    from cua.overlay import apply_overlay
+    from cua.schema import ArtifactStore, Capability, Overlay
+
+    base_capability = Capability.model_validate_json(Path(base).read_text())
+    overlay_doc = Overlay.model_validate_json(Path(overlay).read_text())
+    try:
+        resolved = apply_overlay(base_capability, overlay_doc)
+    except (ValueError, ValidationError) as exc:
+        typer.secho(f"overlay rejected: {exc}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    saved_path = ArtifactStore().save(resolved)
+    typer.secho(
+        f"resolved {overlay_doc.tenant_id!r} -> {saved_path} "
+        f"(status: draft -- run `cua approve` before replay)",
+        fg=typer.colors.GREEN,
     )
 
 

@@ -42,10 +42,16 @@ from fastapi import FastAPI, Form, Request
 from fastapi.responses import PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from . import tenant_b
 from .data import MEMBERS
 
 app = FastAPI(title="Member Servicing Console")
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+# Northgate Federal Credit Union: a second tenant on the SAME vendor
+# product, older build -- the live fixture for REPORT.md sec 4's
+# multi-tenant reuse claim (see tenant_b.py for what differs and why).
+app.include_router(tenant_b.router, prefix="/tenant-b")
 
 
 @app.get("/")

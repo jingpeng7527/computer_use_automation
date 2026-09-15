@@ -12,9 +12,12 @@ the target app running (`cua serve-target`) and the command shown.
 | `replay-20260915044639/` | `cua harden ... --outcome-code MEMBER_NOT_FOUND` (emits v2, status `draft`), `cua approve --artifact .../2.json`, then `cua replay --artifact .../2.json -p member_id=99999` | `BUSINESS_OUTCOME`, code `MEMBER_NOT_FOUND`, detected after step `s2`. Not a crash: the artifact declares this outcome and the engine matched it against the observed page. |
 | `replay-20260915044645/` | `cua replay --artifact artifacts/acme_core.lookup_savings_balance/2.json -p member_id=12345 --fault "inject=500" --no-handoff` | `FAILED` at step `s0`, kind `checkpoint_failed`. `s0-failure.png` is a real screenshot of the target app's "System Error 500" page. |
 | `demo-handoff-1789447614/` | same fault, with handoff enabled: `cua replay ... --fault "inject=500"`, then `cua ops claim <run_id>` / fix by hand / `cua ops release <run_id>` | `result_before_escalation.json`: `FAILED`, `intervention.json` raised (screenshot + reason + empty completed-step list, since it failed on step `s0`). Operator reloads the URL without `?inject=500` in the same browser window, releases control. `result_after_resume.json`: `SUCCESS` -- the resumed run re-checked its checkpoint and continued through to the same typed balance output. |
+| `replay-20260915221443/` | `cua overlay apply --base artifacts/acme_core.lookup_savings_balance/2.json --overlay overlays/acme_core.lookup_savings_balance/cu_northgate.json`, `cua approve --artifact artifacts/acme_core.lookup_savings_balance.cu_northgate/1.json`, then `cua replay --artifact artifacts/acme_core.lookup_savings_balance.cu_northgate/1.json -p member_id=12345 -p branch=main` | `SUCCESS` against the SECOND tenant (`/tenant-b/...` -- different field labels, a real HTML5-`required` branch selector the base tenant doesn't have, a differently-classed detail control, an abbreviated balance label). Same typed `Money` output shape as the base tenant's run. |
+| `replay-20260915221453/` | same resolved tenant artifact, `-p member_id=99999 -p branch=main` | `BUSINESS_OUTCOME / MEMBER_NOT_FOUND` on the second tenant, with zero outcome-detection override in the overlay -- the base capability's detection text happens to match this tenant's build unchanged. |
 
 This is the fourth generation of this evidence set. Three rounds of review found
-real, fixable gaps, each time in a versioned or committed file:
+real, fixable gaps, each time in a versioned or committed file, and a fourth round added
+the two `cu_northgate` runs once the overlay resolver was actually built (see below):
 
 1. The compiler could anchor a locator on a dynamic table cell -- a results row's
    member name ended up recorded in the artifact -- and discovery's own CLI wrote
@@ -38,9 +41,10 @@ real, fixable gaps, each time in a versioned or committed file:
    one. Hardening resets status back to `draft` on the artifact it produces, since a
    new `runtime_match` is new, unreviewed behaviour even when its base was approved.
 
-Every file below was regenerated after all three fixes; grep this whole tree for the
-member's name, id, or balance and you will not find any of them outside of
-command-line examples in this file.
+Every discovery/replay/handoff file was regenerated after the three fixes above; grep this
+whole tree for the member's name, id, or balance and you will not find any of them outside
+of command-line examples in this file. The two `cu_northgate` runs are new, not
+regenerated -- they didn't exist until `src/cua/overlay/resolver.py` did.
 
 ## What each file is
 

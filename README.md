@@ -22,9 +22,11 @@ of every committed run and the exact command that produced it.
 | `src/cua/replay/` | Deterministic replay engine + error taxonomy |
 | `src/cua/safety/` | Allowlist, risk tiers, execution bounds, redaction |
 | `src/cua/escalation/` | Stuck detection, SQLite control-transfer broker, `ops` CLI |
+| `src/cua/overlay/` | Multi-tenant overlay resolution (`apply_overlay`) |
 | `docs/schema/` | Generated Pydantic JSON Schema, DOT, and reviewable SVG contract diagrams |
 | `config/policy.yaml` | Allowlist, risk tiers, redaction rules, execution bounds |
 | `artifacts/` | Saved capability artifacts (one JSON file per version) |
+| `overlays/` | Reviewable tenant overlay deltas (input to `cua overlay apply`) |
 | `evidence/` | Committed evidence from real discovery + replay runs |
 
 ## Setup
@@ -116,6 +118,38 @@ step for that one run, to reproduce an error scenario without editing the saved
 artifact. It never short-circuits the engine -- replay still observes the real page
 and classifies whatever it actually sees; `evidence/README.md` explains how to check
 that for yourself.
+
+## Multi-tenant overlay demo
+
+The same base capability, replayed against a genuinely different second tenant's
+markup (REPORT.md sec 4) -- different field labels, a real `required` branch
+selector the base tenant's build doesn't have, a differently-classed detail
+control, an abbreviated balance label. Requires `cua serve-target` running (it
+mounts both tenants).
+
+```bash
+# resolve the tenant delta against the hardened v2 artifact -> a new,
+# tenant-specific capability (status: "draft" -- new composition, review it)
+.venv/bin/cua overlay apply \
+  --base artifacts/acme_core.lookup_savings_balance/2.json \
+  --overlay overlays/acme_core.lookup_savings_balance/cu_northgate.json
+# -> artifacts/acme_core.lookup_savings_balance.cu_northgate/1.json
+
+.venv/bin/cua approve --artifact artifacts/acme_core.lookup_savings_balance.cu_northgate/1.json
+
+# same capability, same outputs shape, a surface it was never recorded on
+.venv/bin/cua replay \
+  --artifact artifacts/acme_core.lookup_savings_balance.cu_northgate/1.json \
+  -p member_id=12345 -p branch=main
+# -> status: success, typed Money output
+
+# the business outcome carries over with NO override -- its detection text
+# happens to match this tenant's build unchanged
+.venv/bin/cua replay \
+  --artifact artifacts/acme_core.lookup_savings_balance.cu_northgate/1.json \
+  -p member_id=99999 -p branch=main
+# -> status: business_outcome, code MEMBER_NOT_FOUND
+```
 
 ## Tests
 

@@ -45,7 +45,7 @@ from .locator import (
     RoleNameStrategy,
     Target,
 )
-from .overlay import InsertAfter, Overlay, Override, ReplaceTarget, Skip
+from .overlay import InsertAfter, Overlay, Override, ReplaceTarget, ReplaceValue, Skip
 from .result import (
     BusinessOutcomeResult,
     EscalationRef,
@@ -88,6 +88,7 @@ __all__ = [
     "RecoveryAction",
     "RecoveryBudget",
     "ReplaceTarget",
+    "ReplaceValue",
     "ReplayResult",
     "RiskLevel",
     "RoleName",

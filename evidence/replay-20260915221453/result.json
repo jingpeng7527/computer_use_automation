@@ -1,0 +1,57 @@
+{
+  "capability_id": "acme_core.lookup_savings_balance.cu_northgate",
+  "capability_version": 1,
+  "run_id": "replay-20260915221453",
+  "status": "business_outcome",
+  "outputs": null,
+  "outcome": {
+    "code": "MEMBER_NOT_FOUND",
+    "description": "s2_business_outcome",
+    "detected_after_step": "s2",
+    "outputs": {}
+  },
+  "failure": null,
+  "escalation": null,
+  "steps": [
+    {
+      "step_id": "s0",
+      "intent": "navigate to http://127.0.0.1:8800/members/search",
+      "status": "ok",
+      "locator_layer_hit": null,
+      "recoveries_applied": [],
+      "duration_ms": 123,
+      "extracted": {}
+    },
+    {
+      "step_id": "s0b",
+      "intent": "select branch {{input.branch}}",
+      "status": "ok",
+      "locator_layer_hit": 2,
+      "recoveries_applied": [],
+      "duration_ms": 60,
+      "extracted": {}
+    },
+    {
+      "step_id": "s1",
+      "intent": "type {{input.member_id}}",
+      "status": "ok",
+      "locator_layer_hit": 2,
+      "recoveries_applied": [],
+      "duration_ms": 25,
+      "extracted": {}
+    },
+    {
+      "step_id": "s2",
+      "intent": "click 'Search'",
+      "status": "outcome",
+      "locator_layer_hit": 1,
+      "recoveries_applied": [],
+      "duration_ms": 238,
+      "extracted": {}
+    }
+  ],
+  "started_at": "2026-09-15T22:14:55.122123Z",
+  "ended_at": "2026-09-15T22:14:55.569603Z",
+  "evidence_dir": "evidence/replay-20260915221453",
+  "redactions": []
+}

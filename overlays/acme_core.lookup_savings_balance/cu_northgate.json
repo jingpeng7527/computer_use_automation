@@ -1,0 +1,85 @@
+{
+  "extends": "acme_core.lookup_savings_balance@2",
+  "tenant_id": "cu_northgate",
+  "add_inputs": [
+    {
+      "name": "branch",
+      "type": "string",
+      "required": true,
+      "description": "Branch to search within -- this tenant's build requires selecting one; the base tenant has no equivalent field.",
+      "sensitivity": "none"
+    }
+  ],
+  "overrides": [
+    {
+      "op": "replace_value",
+      "step_id": "s0",
+      "value": "http://127.0.0.1:8800/tenant-b/members/search"
+    },
+    {
+      "op": "insert_after",
+      "step_id": "s0",
+      "step": {
+        "id": "s0b",
+        "intent": "select branch {{input.branch}}",
+        "action": {
+          "type": "select",
+          "value_from": "{{input.branch}}",
+          "by": "value"
+        },
+        "risk_level": "REVERSIBLE_WRITE",
+        "target": {
+          "strategies": [
+            {
+              "type": "label_anchor",
+              "label": "Branch:",
+              "relation": "same_row_input",
+              "rationale": "this tenant's build has no accessible name on the branch selector; anchored on the adjacent 'Branch:' label, the same pattern the base artifact already uses for the member-id field"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "op": "replace_target",
+      "step_id": "s1",
+      "target": {
+        "strategies": [
+          {
+            "type": "label_anchor",
+            "label": "Acct/Member #:",
+            "relation": "same_row_input",
+            "rationale": "this tenant's build labels the same field 'Acct/Member #:' instead of 'Member Number:'"
+          }
+        ]
+      }
+    },
+    {
+      "op": "replace_target",
+      "step_id": "s3",
+      "target": {
+        "strategies": [
+          {
+            "type": "css",
+            "selector": ".detail-link",
+            "rationale": "this tenant's build uses a differently-classed div for the same unlabelled, no-role detail-view control ('Details' instead of 'View')"
+          }
+        ]
+      }
+    },
+    {
+      "op": "replace_target",
+      "step_id": "s4",
+      "target": {
+        "strategies": [
+          {
+            "type": "label_anchor",
+            "label": "SAV BAL",
+            "relation": "next_cell",
+            "rationale": "this tenant's build abbreviates the savings-balance row label to 'SAV BAL'"
+          }
+        ]
+      }
+    }
+  ]
+}

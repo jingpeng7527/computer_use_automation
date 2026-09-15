@@ -691,7 +691,7 @@ def _escalate_and_wait(
     keepalive = KeepAliveThread(
         base_url=state.adapter.location().origin,
         policy=state.policy,
-        broker=broker,
+        db_path=broker.db_path,
         run_id=state.run_id,
     )
     keepalive.start()

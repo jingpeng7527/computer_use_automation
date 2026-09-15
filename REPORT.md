@@ -448,28 +448,39 @@ propagate a vendor upgrade, so artifacts are layered:
 ```yaml
 # base, maintained once per vendor product
 capability_id: "acme_core.lookup_savings_balance"
-version: 3
+version: 2
 
 # tenant overlay, stores differences only
-extends: "acme_core.lookup_savings_balance@3"
-tenant_id: "cu_first_national"
+extends: "acme_core.lookup_savings_balance@2"
+tenant_id: "cu_northgate"
+add_inputs:
+  - { name: branch, type: string, required: true }   # this tenant has a mandatory branch selector
 overrides:
+  - op: replace_value          # this tenant's entry point is a different route entirely
+    step_id: "s0"
+    value: "http://127.0.0.1:8800/tenant-b/members/search"
+  - op: insert_after            # the branch selector itself
+    step_id: "s0"
+    step: { id: "s0b", action: { type: select, value_from: "{{input.branch}}", by: value }, ... }
   - op: replace_target
-    step_id: "fill_member_id"
+    step_id: "s1"
     target:
       strategies:
-        - { type: role_name, role: textbox, name: "Acct / Member #" }
-  - op: insert_after            # this tenant has a mandatory branch selector
-    step_id: "fill_member_id"
-    step: { id: "select_branch", action: select, ... }
-  - op: skip                    # this tenant has no confirmation page
-    step_id: "confirm_page"
+        - { type: label_anchor, label: "Acct/Member #:", relation: same_row_input }
+  - op: replace_target          # a differently-classed control, still no role/name
+    step_id: "s3"
+    target: { strategies: [{ type: css, selector: ".detail-link" }] }
+  - op: replace_target          # the balance row label is abbreviated on this build
+    step_id: "s4"
+    target: { strategies: [{ type: label_anchor, label: "SAV BAL", relation: next_cell }] }
 ```
 
-Three operations rather than one, because real tenant divergence is not only relabelling.
-Institutions running the same product add a required field or omit a confirmation screen, and an
-overlay that can only rewrite a target cannot express either, which would force a re-recording for
-exactly the cases layering exists to avoid.
+Four operations, not one, because real tenant divergence is not only relabelling. Institutions
+running the same product add a required field, point an entry step at a different route, or omit a
+confirmation screen, and an overlay that can only rewrite a target cannot express any of the last
+three. `replace_value` exists specifically for the entry-route case above: a `Navigate` step's own
+literal URL is not a target (a navigate step has nothing to locate on the page), so overriding it
+needed its own operation.
 
 Topology edits do create the failure the inheritance objection points at: skip a step whose
 extracted value a later step consumes and the flow breaks in a way that is invisible in the
@@ -492,12 +503,32 @@ does not fit a tenant, the run does not crash: it escalates per Section 5, the o
 resolution is captured, and that capture is the raw material for the tenant overlay. Degradation
 produces the fix instead of merely reporting the problem.
 
-Cut from this section: the inheritance resolver, a second tenant variant of the mock app, and the
-drift dashboard. What is built is the overlay schema (`schema/overlay.py`) -- `replace_target`,
-`insert_after`, `skip`, exactly the three operations argued above -- and the layer-hit telemetry
-the dashboard would consume, which every real replay in `evidence/` already emits per step. The
-resolver that walks a base plus an overlay into a resolved step list, and a second mock-app variant
-to run it against, are not built; see Section 7.
+**This is demonstrated, not asserted.** `apply_overlay()` (`src/cua/overlay/resolver.py`) resolves
+a base capability plus the YAML-equivalent JSON above into a concrete, replayable capability; the
+resolved artifact is then validated by round-tripping through `Capability.model_validate()` rather
+than by a second copy of the reference-integrity logic, so every invariant Section 2 already
+enforces on a base capability -- no duplicate step ids, no dangling `input.*`/`ctx.*`/`output.*`
+reference, `RuntimeMatch.after_step` naming a real step -- is re-checked against the *resolved*
+step list for free. `tests/test_overlay_resolver.py` exercises all four operations plus both
+rejection paths (a wrong `extends` version; a `skip` that breaks a downstream `ctx.*` reference).
+
+The mock target app now ships a genuine second tenant: `cu_northgate`, mounted at `/tenant-b/...`,
+same underlying data, deliberately different markup wherever a real older build of the same
+product would diverge -- a different label on the member-id field, an entirely different (and, in
+the live browser, actually `required`) branch selector the base tenant's build doesn't have at
+all, a differently-classed detail-view control, and an abbreviated balance-row label. Deliberately
+*unchanged*: the "Search" button's accessible name and the "Member Detail" heading, both of which
+survive across real UI builds, so the overlay overrides five things and leaves two of the base
+artifact's five steps completely untouched. `evidence/replay-20260915221443/` and
+`evidence/replay-20260915221453/` are the same resolved capability -- literally the same JSON file
+-- correctly returning `SUCCESS` with a typed `Money` output and `BUSINESS_OUTCOME /
+MEMBER_NOT_FOUND` against that second, genuinely different surface, with no override needed for
+the outcome detection at all (its wording happens to match on both builds, so nothing had to name
+it in the overlay).
+
+Cut from this section: the drift dashboard. The layer-hit telemetry it would consume is real and
+already emitted per step by every replay in `evidence/`; aggregating it across tenants and alerting
+on a rate crossing a threshold is reporting infrastructure, not design, and is listed in Section 7.
 
 ---
 
@@ -732,7 +763,6 @@ Everything below is a deliberate omission with the seam left in place, not an un
 | Cut | Why | What exists |
 |---|---|---|
 | Desktop and vision adapters | Brief does not ask for them; the argument is the seam, not a second implementation | `SurfaceAdapter` protocol; nothing above it is browser-specific |
-| Overlay inheritance resolver | Resolution is mechanical once the schema is right; the schema is the judgement | Overlay schema (`replace_target` / `insert_after` / `skip`); no resolver, no second tenant variant |
 | Drift dashboard | Reporting infrastructure, not design | Per-run layer-hit telemetry in the logs |
 | Operator web console | Explicitly mockable per the brief | CLI claim/release against the real broker |
 | Queues, workers, service split | Explicitly not rewarded; the boundaries are what matter | Four interfaces at the four cut points |
@@ -768,10 +798,16 @@ unreviewed behaviour, not a metadata change -- inheriting approval across that w
 gate's own purpose. `evidence/replay-20260915044628/` was run against a freshly approved artifact,
 not a hand-edited one.
 
+*Overlay resolver and a second tenant.* Section 4 covers this one in full -- `apply_overlay()`, a
+fourth override op (`replace_value`) the original three couldn't express, a genuine second tenant
+mock (`/tenant-b/...`), and both `SUCCESS` and `BUSINESS_OUTCOME` demonstrated against it with the
+same resolved artifact. Not built: the drift *dashboard* -- aggregating layer-hit telemetry across
+tenants and alerting on it -- which stays in the list below.
+
 **What I would build next, in order**
 
-1. *Overlay resolver plus a drift report.* The point where this stops being a demo and starts
-   being operable across institutions.
+1. *A drift dashboard,* aggregating the per-run layer-hit telemetry every replay already emits
+   across tenants, and alerting when one starts falling to a deeper layer than the others.
 2. *Desktop adapter against one real legacy application.* The seam is designed for it, but an
    argument is not a test, and this is where the design would actually be falsified.
 3. *Bounded assisted recovery,* with the budget and policy checks it requires.
@@ -779,7 +815,7 @@ not a hand-edited one.
 
 **The one thing that is not a cut.** The discovery run is real: a live LLM-driven run against the
 mock portal, with the transcript, the emitted artifact and the resulting replay in `/evidence/`.
-The brief is unambiguous that this cannot be described in place of being done. Five runs are
+The brief is unambiguous that this cannot be described in place of being done. Seven runs are
 committed, indexed in `evidence/README.md`, and every path quoted in this document resolves to a
 file in that tree:
 
@@ -790,10 +826,12 @@ file in that tree:
 | `replay-20260915044639` | v2 (hardened, then approved), an id with no record | `BUSINESS_OUTCOME / MEMBER_NOT_FOUND` |
 | `replay-20260915044645` | injected 500 on the entry page | `FAILURE`, with a captured screenshot |
 | `demo-handoff-1789447614` | the same injected-500 fault, escalated instead of just failed | `FAILURE` -> operator claims, fixes, releases -> `SUCCESS` on resume |
+| `replay-20260915221443` | the `cu_northgate` overlay resolved from v2 and approved, replayed against the SECOND tenant's mock app, a valid member id | `SUCCESS`, same typed `Money` output, on a genuinely different surface |
+| `replay-20260915221453` | same resolved tenant artifact, an id with no record | `BUSINESS_OUTCOME / MEMBER_NOT_FOUND`, with no outcome-detection override needed |
 
-`demo-handoff-1789447614` is the one worth reading: it exercises checkpoint failure,
-classification, evidence capture, the control-transfer state machine and checkpoint-based resume
-in a single run.
+`demo-handoff-1789447614` is the one worth reading for the handoff mechanism; the two
+`cu_northgate` runs are the one worth reading for Section 4's multi-tenant claim, since they are
+the same base capability resolved once and replayed against a surface it was never recorded on.
 
 This is the second generation of this evidence. A review of the first caught two real bugs, not
 just wording problems: the compiler could anchor a locator on a dynamic table cell (a results

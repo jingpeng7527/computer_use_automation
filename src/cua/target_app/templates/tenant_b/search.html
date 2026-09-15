@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head><title>Northgate Member Search</title></head>
+<body>
+<h1>Member Servicing Console</h1>
+<!-- Same vendor product as the base tenant, older build: the member-id
+     field has a different label, and there's a mandatory branch selector
+     the base tenant's build doesn't have at all. -->
+<form method="post" action="/tenant-b/members/search">
+  <table>
+    <tr>
+      <td>Acct/Member #:</td>
+      <td><input id="fld-19" name="member_id" type="text" /></td>
+    </tr>
+    <tr>
+      <td>Branch:</td>
+      <td>
+        <select id="fld-20" name="branch" required>
+          <option value="">-- select --</option>
+          <option value="main">Main Branch</option>
+          <option value="downtown">Downtown Branch</option>
+        </select>
+      </td>
+    </tr>
+  </table>
+  <button type="submit">Search</button>
+</form>
+{% if not_found %}<p>No member records match {{ not_found }}</p>{% endif %}
+</body>
+</html>
