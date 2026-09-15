@@ -206,11 +206,11 @@
     "timeout_ms": 10000
   },
   "provenance": {
-    "discovered_at": "2026-09-14T23:37:49.794096Z",
-    "model": "openai/gpt-oss-120b",
+    "discovered_at": "2026-09-15T04:33:40.023164Z",
+    "model": "openai/gpt-oss-120b -> gemini-3.6-flash",
     "goal": "look up member {{input.member_id}} and read their current savings balance",
-    "discovery_run_id": "discovery-20260914233735",
-    "transcript_sha256": "d8800c8487ba5720d8f4c602f945074287f032645e5e9962c1cd8b7a4b526201",
+    "discovery_run_id": "discovery-20260915043330",
+    "transcript_sha256": "3981837dd9cfd1554c9991fa19b989bc0c5778c6bf4ad86d419e18ed33366e6d",
     "human_edited": false
   }
 }

@@ -112,7 +112,7 @@ def discover(
         run_discovery,
         template_literals,
     )
-    from cua.safety import load_policy, redact_text
+    from cua.safety import load_policy, mask, redact_text
     from cua.schema import AppProfile, ArtifactStore
     from cua.surface import WebAdapter
 
@@ -169,22 +169,56 @@ def discover(
             return None
         return redact_text(template_literals(text, param_literals), policy)
 
+    # NOT the same "declared outputs aren't redacted" rule replay follows
+    # (engine.py's _redact_outputs) -- that rule presumes an OutputSpec
+    # whose sensitivity a human has already reviewed. At discovery time no
+    # such review has happened yet: the goal could just as easily have been
+    # "read the account holder's name", and whatever the model actually
+    # read lands in `transcript.outputs` with no OutputSpec, no sensitivity
+    # tag, nothing to gate on. The regex fallback (_sanitize, below) only
+    # catches a handful of fixed SHAPES -- SSNs, emails, long digit runs --
+    # and a plain name like "Dolores Ibarra" matches none of them and
+    # passed straight through when this only ran regex (verified: it did).
+    # ctx.* values get exactly this same treatment in replay -- "treated as
+    # sensitive by default rather than by tag ... the only kind whose
+    # sensitivity is not declared in the artifact" -- because they too come
+    # off a live screen with nothing to classify them yet. Discovery output
+    # is the identical case, so it gets the identical answer: masked
+    # unconditionally, not filtered by pattern.
+    #
+    # This has to be applied everywhere the same value can appear, not just
+    # the top-level outputs dict -- verified it otherwise leaked twice more
+    # from the exact same read: the `finish` tool call's own `outputs` arg
+    # (a nested dict `_sanitize` never recursed into, since it only handled
+    # top-level strings) and the "read" step's own observed node.text (the
+    # literal page text a read step's whole purpose is to capture).
+    outputs_evidence = {k: mask(v, "unclassified") for k, v in transcript.outputs.items()}
+
+    def _sanitize_arg(v):
+        if isinstance(v, str):
+            return _sanitize(v)
+        if isinstance(v, dict):
+            return {k: mask(v2, "unclassified") if isinstance(v2, str) else v2 for k, v2 in v.items()}
+        return v
+
     goal_evidence = _sanitize(goal)
     steps_evidence = [
         {
             "step_index": s.step_index,
             "tool_call": {
                 "name": s.tool_call.name,
-                "args": {
-                    k: (_sanitize(v) if isinstance(v, str) else v) for k, v in s.tool_call.args.items()
-                },
+                "args": {k: _sanitize_arg(v) for k, v in s.tool_call.args.items()},
             },
             "node": (
                 {
                     "node_id": s.node.node_id,
                     "role": s.node.role,
                     "name": _sanitize(s.node.name),
-                    "text": _sanitize(s.node.text),
+                    "text": (
+                        mask(s.node.text, "unclassified")
+                        if s.tool_call.name == "read" and s.node.text
+                        else _sanitize(s.node.text)
+                    ),
                 }
                 if s.node
                 else None
@@ -196,18 +230,6 @@ def discover(
         }
         for s in transcript.steps
     ]
-    # NOT the same "declared outputs aren't redacted" rule replay follows
-    # (engine.py's _redact_outputs) -- that rule presumes an OutputSpec
-    # whose sensitivity a human has already reviewed. At discovery time no
-    # such review has happened yet: the goal could just as easily have been
-    # "read the account holder's name and SSN", and whatever the model
-    # actually read lands in `transcript.outputs` with no OutputSpec, no
-    # sensitivity tag, nothing to gate on -- compile_capability defaults a
-    # fresh OutputSpec to sensitivity="none", and hardening never revisits
-    # it. So the regex fallback pass applies here too, same as every other
-    # free-text field above; a legitimate-looking value like "$8160.00 USD"
-    # matches no pattern and passes through untouched.
-    outputs_evidence = {k: _sanitize(v) for k, v in transcript.outputs.items()}
     transcript_json = json.dumps(
         {"goal": goal_evidence, "target": target, "steps": steps_evidence, "outputs": outputs_evidence},
         indent=2,

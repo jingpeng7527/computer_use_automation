@@ -1,7 +1,7 @@
 {
   "capability_id": "acme_core.lookup_savings_balance",
-  "capability_version": 1,
-  "run_id": "replay-20260914233813",
+  "capability_version": 2,
+  "run_id": "demo-handoff-1789446887",
   "status": "success",
   "outputs": {
     "savings_balance": {
@@ -19,7 +19,7 @@
       "status": "ok",
       "locator_layer_hit": null,
       "recoveries_applied": [],
-      "duration_ms": 233,
+      "duration_ms": 118,
       "extracted": {}
     },
     {
@@ -28,7 +28,7 @@
       "status": "ok",
       "locator_layer_hit": 2,
       "recoveries_applied": [],
-      "duration_ms": 85,
+      "duration_ms": 187,
       "extracted": {}
     },
     {
@@ -37,7 +37,7 @@
       "status": "ok",
       "locator_layer_hit": 1,
       "recoveries_applied": [],
-      "duration_ms": 150,
+      "duration_ms": 211,
       "extracted": {}
     },
     {
@@ -46,7 +46,7 @@
       "status": "ok",
       "locator_layer_hit": 3,
       "recoveries_applied": [],
-      "duration_ms": 101,
+      "duration_ms": 119,
       "extracted": {}
     },
     {
@@ -55,12 +55,12 @@
       "status": "ok",
       "locator_layer_hit": 2,
       "recoveries_applied": [],
-      "duration_ms": 16,
+      "duration_ms": 21,
       "extracted": {}
     }
   ],
-  "started_at": "2026-09-14T23:38:17.169267Z",
-  "ended_at": "2026-09-14T23:38:17.759656Z",
-  "evidence_dir": "evidence/replay-20260914233813",
+  "started_at": "2026-09-15T04:34:49.554108Z",
+  "ended_at": "2026-09-15T04:34:50.215278Z",
+  "evidence_dir": "evidence/demo-handoff-1789446887",
   "redactions": []
 }

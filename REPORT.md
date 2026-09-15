@@ -327,7 +327,7 @@ with non-incidents and bury the real ones. Concretely, three result shapes:
   "failure": { "step_id": "s0", "kind": "checkpoint_failed",
     "expected": "reached a page headed 'Member Servicing Console'",
     "observed": "at http://127.0.0.1:8800/members/search?inject=500",
-    "screenshot_ref": "evidence/replay-20260914233903/s0-failure.png" } }
+    "screenshot_ref": "evidence/replay-20260915043438/s0-failure.png" } }
 ```
 
 (field names and casing above are the actual `ReplayResult`/`FailureDetail`/`BusinessOutcomeResult`
@@ -664,6 +664,15 @@ its own limits.
 Outputs are tagged too, not just inputs. A returned member name is PII on the way out exactly as
 a member id is on the way in.
 
+That tagging is only available once a human (or a hardening pass) has actually reviewed an
+`OutputSpec` -- and discovery evidence is written before that review has ever happened. A regex
+pass alone is not enough there: it catches fixed shapes like an SSN or an account number, but a
+plain name matches nothing, and this was verified as a real gap, not a hypothetical one. So a
+captured discovery-time output is masked unconditionally wherever it appears in evidence -- the
+`outputs` dict, the model's own `finish` tool call, and a `read` step's own observed node text --
+the same unconditional treatment `ctx.*` values already get in replay, and for the identical
+reason: a value captured live off a screen with nothing yet available to classify it.
+
 **Limits, stated plainly.** The allowlist constrains navigation, not semantics: a step within an
 allowed route that does the wrong thing is not caught by it, only by risk tiering and review.
 Pattern-based redaction has false negatives on unusual formats. There is no encryption at rest on
@@ -726,13 +735,13 @@ file in that tree:
 
 | Run | Scenario | Result |
 |---|---|---|
-| `discovery-20260914233735` | live discovery against the portal, member `12345` (Gemini's daily free-tier quota was exhausted at run time, so `FallbackProvider` fell through to Groq -- honestly recorded in `run_meta.json`, not silently credited to the configured primary) | emits `acme_core.lookup_savings_balance` v1 |
-| `replay-20260914233813` | same capability, a valid member id | `SUCCESS`, typed `Money` output |
-| `replay-20260914233851` | same capability (hardened to v2), an id with no record | `BUSINESS_OUTCOME / MEMBER_NOT_FOUND` |
-| `replay-20260914233903` | injected 500 on the entry page | `FAILURE`, with a captured screenshot |
-| `demo-handoff-1789429153` | the same injected-500 fault, escalated instead of just failed | `FAILURE` -> operator claims, fixes, releases -> `SUCCESS` on resume |
+| `discovery-20260915043330` | live discovery against the portal, member `12345` (Gemini's daily free-tier quota was exhausted at run time, so `FallbackProvider` fell through to Groq mid-run -- honestly recorded in `run_meta.json`, not silently credited to the configured primary) | emits `acme_core.lookup_savings_balance` v1 |
+| `replay-20260915043402` | same capability, a valid member id | `SUCCESS`, typed `Money` output |
+| `replay-20260915043436` | same capability (hardened to v2), an id with no record | `BUSINESS_OUTCOME / MEMBER_NOT_FOUND` |
+| `replay-20260915043438` | injected 500 on the entry page | `FAILURE`, with a captured screenshot |
+| `demo-handoff-1789446887` | the same injected-500 fault, escalated instead of just failed | `FAILURE` -> operator claims, fixes, releases -> `SUCCESS` on resume |
 
-`demo-handoff-1789429153` is the one worth reading: it exercises checkpoint failure,
+`demo-handoff-1789446887` is the one worth reading: it exercises checkpoint failure,
 classification, evidence capture, the control-transfer state machine and checkpoint-based resume
 in a single run.
 

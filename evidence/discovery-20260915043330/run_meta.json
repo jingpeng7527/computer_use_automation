@@ -1,0 +1,13 @@
+{
+  "run_id": "discovery-20260915043330",
+  "goal": "look up member {{input.member_id}} and read their current savings balance",
+  "target": "http://127.0.0.1:8800/members/search",
+  "model": "openai/gpt-oss-120b -> gemini-3.6-flash",
+  "success": true,
+  "reason": "Successfully looked up member {{input.member_id}} and read their current savings balance.",
+  "outputs": {
+    "savings_balance": "<unclassified:12 chars>"
+  },
+  "step_count": 6,
+  "duration_s": 6.46
+}

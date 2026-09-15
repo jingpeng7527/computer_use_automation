@@ -23,6 +23,7 @@
         "args": {
           "node_id": "n2",
           "param_name": "member_id",
+          "submit": false,
           "text": "{{input.member_id}}"
         }
       },
@@ -88,7 +89,7 @@
         "node_id": "n6",
         "role": null,
         "name": null,
-        "text": "$8160.00 USD"
+        "text": "<unclassified:12 chars>"
       },
       "location_path": "/members/{{input.member_id}}/detail",
       "result": "ok",
@@ -100,10 +101,10 @@
       "tool_call": {
         "name": "finish",
         "args": {
+          "reason": "Successfully looked up member {{input.member_id}} and read their current savings balance.",
           "outputs": {
-            "savings_balance": "$8160.00 USD"
+            "savings_balance": "<unclassified:12 chars>"
           },
-          "reason": "Successfully retrieved member's savings balance.",
           "success": true
         }
       },
@@ -111,10 +112,10 @@
       "location_path": "/members/{{input.member_id}}/detail",
       "result": "ok",
       "detail": "finished",
-      "provider_model": "openai/gpt-oss-120b"
+      "provider_model": "gemini-3.6-flash"
     }
   ],
   "outputs": {
-    "savings_balance": "$8160.00 USD"
+    "savings_balance": "<unclassified:12 chars>"
   }
 }
