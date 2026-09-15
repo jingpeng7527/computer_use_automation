@@ -181,7 +181,17 @@ can come back; `runtime_matches` is the engine's business.
 **Ordered steps.** Each step carries an `action`, a `risk_level`, a layered `target`, an optional
 `wait`, and a `checkpoint`. Steps bind values by reference and never by literal, which serves
 parameterisation and PII-exclusion with the same mechanism: the concrete member id used during
-recording is structurally absent from the file.
+recording is structurally absent from the file. Not just asserted here --
+`tests/test_no_recording_time_literals_in_artifacts.py` JSON-scans every artifact actually
+committed to this repo (every `steps`/`summary`/`goal`/`provenance` field, not only the locator a
+single compiler function targets) for the recording-time member id, name and balance, so a future
+regression anywhere in the compile/save path fails a test, not just a manual grep. Discovery
+itself is testable the same way, with no API key or browser: `run_discovery()` and
+`compile_capability()` both take plain data (`LLMProvider`/`SurfaceAdapter` protocols, a
+`DiscoveryTranscript`), so `tests/test_discovery_compile_replay_with_fake_provider.py` drives a
+scripted provider and a scripted surface through discover -> compile -> replay end to end,
+asserting the same no-literal-leak property on a freshly compiled artifact and that it actually
+replays against a fresh instance of the same fake surface.
 
 References live in three namespaces, and the distinction is a data-handling rule as much as a
 naming one:
