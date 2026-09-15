@@ -8,13 +8,14 @@ from __future__ import annotations
 
 from .allowlist import AllowlistDecision, check_allowed
 from .bounds import BoundExceeded, ExecutionGuard
-from .policy import ExecutionBounds, KeepAlive, Policy, load_policy
+from .policy import ErrorClassification, ExecutionBounds, KeepAlive, Policy, load_policy
 from .redaction import mask, redact_ctx_value, redact_text, redact_value
 from .risk import RiskDecision, RiskTier, classify_risk, gate
 
 __all__ = [
     "AllowlistDecision",
     "BoundExceeded",
+    "ErrorClassification",
     "ExecutionBounds",
     "ExecutionGuard",
     "KeepAlive",

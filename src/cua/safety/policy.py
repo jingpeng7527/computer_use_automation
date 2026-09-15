@@ -55,6 +55,24 @@ class KeepAlive(BaseModel):
     interval_s: float = 60
 
 
+class ErrorClassification(BaseModel):
+    # Case-insensitive substrings that mark a divergent page as a real fault
+    # rather than a legitimate business outcome (hardening.py's
+    # classify_divergence). Per-target-app, because different legacy
+    # systems phrase their error pages differently -- this used to be a
+    # hardcoded tuple in hardening.py, which meant every target app was
+    # silently held to the one demo app's wording.
+    hard_failure_signals: list[str] = Field(
+        default_factory=lambda: [
+            "system error",
+            "internal server error",
+            "traceback",
+            "exception",
+            "stack trace",
+        ]
+    )
+
+
 class Policy(BaseModel):
     allowlist: AllowlistConfig
     risk_tiers: RiskTiers
@@ -62,6 +80,7 @@ class Policy(BaseModel):
     redaction: RedactionConfig = Field(default_factory=RedactionConfig)
     execution_bounds: ExecutionBounds = Field(default_factory=ExecutionBounds)
     keep_alive: KeepAlive = Field(default_factory=KeepAlive)
+    error_classification: ErrorClassification = Field(default_factory=ErrorClassification)
 
 
 def load_policy(path: Path | str = "config/policy.yaml") -> Policy:

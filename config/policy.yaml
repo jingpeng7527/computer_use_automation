@@ -88,3 +88,16 @@ execution_bounds:
 keep_alive:
   route: "/members/search"
   interval_s: 60
+
+# cua harden's mechanical divergence classifier (hardening.py:classify_divergence).
+# Case-insensitive substrings that mark a page as a genuine hard_failure rather
+# than a business_outcome. Specific to this target app's own error wording --
+# a different legacy system phrases its error pages differently and should
+# override this list, not inherit the demo app's.
+error_classification:
+  hard_failure_signals:
+    - "system error"
+    - "internal server error"
+    - "traceback"
+    - "exception"
+    - "stack trace"

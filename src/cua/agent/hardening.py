@@ -31,21 +31,28 @@ from ..replay import replay
 
 Category = Literal["business_outcome", "recoverable", "hard_failure"]
 
-_ERROR_SIGNALS = ("system error", "internal server error", "traceback", "exception", "stack trace")
 
-
-def classify_divergence(snapshot: SurfaceSnapshot, failure_kind: str) -> Category:
+def classify_divergence(snapshot: SurfaceSnapshot, failure_kind: str, policy: Policy) -> Category:
     """Pure and mechanical, on purpose: no model in this decision either.
     `failure_kind` is the FailureKind the replay engine already assigned
     (e.g. "app_error" from an exception is an immediate hard_failure);
-    everything else is read off what's actually on the page."""
+    everything else is read off what's actually on the page.
+
+    The error-signal check runs BEFORE the dialog check, not after: a
+    dialog-shaped element is only actually "recoverable" if nothing on
+    screen also says this is a real fault. Checking dialog-shape first
+    would call a dialog reading "System Error 500" recoverable -- wrong in
+    the most dangerous direction, since `recoverable` triggers automatic
+    retries against what is actually a hard failure. `hard_failure_signals`
+    comes from `policy.error_classification`, not a hardcoded tuple, since
+    different target apps phrase their error pages differently."""
     if failure_kind == "app_error":
+        return "hard_failure"
+    text = " ".join(n.text for n in snapshot if n.text).lower()
+    if any(signal in text for signal in policy.error_classification.hard_failure_signals):
         return "hard_failure"
     if any(n.role == "dialog" for n in snapshot):
         return "recoverable"
-    text = " ".join(n.text for n in snapshot if n.text).lower()
-    if any(signal in text for signal in _ERROR_SIGNALS):
-        return "hard_failure"
     return "business_outcome"
 
 
@@ -74,7 +81,7 @@ def run_hardening_pass(
             f"but replay returned status={result.status!r}"
         )
     snapshot = adapter.observe()
-    category = classify_divergence(snapshot, result.failure.kind)
+    category = classify_divergence(snapshot, result.failure.kind, policy)
     candidate_texts = [n.text for n in snapshot if n.text]
     return category, candidate_texts, result
 

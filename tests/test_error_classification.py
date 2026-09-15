@@ -55,24 +55,50 @@ def _node(
 
 def test_stable_page_with_no_error_signal_is_a_business_outcome() -> None:
     snapshot = [_node(text="No member records match")]
-    assert classify_divergence(snapshot, failure_kind="target_not_found") == "business_outcome"
+    assert classify_divergence(snapshot, failure_kind="target_not_found", policy=POLICY) == "business_outcome"
 
 
 def test_a_dialog_shaped_element_is_recoverable() -> None:
     snapshot = [_node(role="dialog", name="Session Warning")]
-    assert classify_divergence(snapshot, failure_kind="checkpoint_failed") == "recoverable"
+    assert classify_divergence(snapshot, failure_kind="checkpoint_failed", policy=POLICY) == "recoverable"
 
 
 def test_error_page_text_is_a_hard_failure() -> None:
     snapshot = [_node(text="System Error 500: an internal failure occurred")]
-    assert classify_divergence(snapshot, failure_kind="checkpoint_failed") == "hard_failure"
+    assert classify_divergence(snapshot, failure_kind="checkpoint_failed", policy=POLICY) == "hard_failure"
 
 
 def test_an_exception_during_act_is_always_a_hard_failure() -> None:
     # even a page with no visible error text -- the engine already knows
     # something threw, which is decisive on its own.
     snapshot = [_node(text="whatever happens to be on screen")]
-    assert classify_divergence(snapshot, failure_kind="app_error") == "hard_failure"
+    assert classify_divergence(snapshot, failure_kind="app_error", policy=POLICY) == "hard_failure"
+
+
+def test_a_dialog_containing_error_text_is_a_hard_failure_not_recoverable() -> None:
+    # The dangerous ordering bug this guards against: a dialog-shaped
+    # element is not automatically "recoverable" (dismiss and retry) if
+    # what it actually says is a real fault -- retrying a genuine server
+    # error is the wrong response, and a wrong "recoverable" here would
+    # have driven the replay engine's retry budget straight at it.
+    snapshot = [_node(role="dialog", name="Error", text="System Error 500: an internal failure occurred")]
+    assert classify_divergence(snapshot, failure_kind="checkpoint_failed", policy=POLICY) == "hard_failure"
+
+
+def test_hard_failure_signals_come_from_policy_not_a_hardcoded_list() -> None:
+    # A phrase this target app never uses, so the demo policy's fixed
+    # signal list won't catch it on its own -- proves the check actually
+    # reads policy.error_classification rather than a module constant.
+    custom_policy = POLICY.model_copy(
+        update={
+            "error_classification": POLICY.error_classification.model_copy(
+                update={"hard_failure_signals": ["service unavailable"]}
+            )
+        }
+    )
+    snapshot = [_node(text="503 Service Unavailable -- please try again later")]
+    assert classify_divergence(snapshot, failure_kind="checkpoint_failed", policy=custom_policy) == "hard_failure"
+    assert classify_divergence(snapshot, failure_kind="checkpoint_failed", policy=POLICY) == "business_outcome"
 
 
 # ---- replay engine ordering: terminal match wins over the checkpoint ----
