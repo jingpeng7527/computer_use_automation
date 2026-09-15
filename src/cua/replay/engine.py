@@ -355,7 +355,11 @@ def _run_step(state: _RunState, step: Step) -> None:
         destination = step.action.url_template if isinstance(step.action, Navigate) else None
         location = state.adapter.location()
         allow = check_allowed(
-            step.action.type, state.policy, current_location=location, destination=destination
+            step.action.type,
+            state.policy,
+            current_location=location,
+            destination=destination,
+            app_profile=state.capability.app_profile,
         )
         if not allow.allowed:
             _stop_failed(
@@ -730,7 +734,9 @@ def _escalate_and_wait(
                 # otherwise would resume "into" a session that was never
                 # the one the run started in.
                 location = state.adapter.location()
-                if not check_allowed("read", state.policy, current_location=location).allowed:
+                if not check_allowed(
+                    "read", state.policy, current_location=location, app_profile=state.capability.app_profile
+                ).allowed:
                     return (
                         "session_lost",
                         {},

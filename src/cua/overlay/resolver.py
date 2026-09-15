@@ -89,6 +89,19 @@ def apply_overlay(base: Capability, overlay: Overlay) -> Capability:
             f"or drop it from add_inputs if it's really the same one"
         )
 
+    app_profile = base.app_profile
+    if overlay.base_url is not None or overlay.allowed_route_patterns is not None:
+        app_profile = app_profile.model_copy(
+            update={
+                k: v
+                for k, v in (
+                    ("base_url", overlay.base_url),
+                    ("allowed_route_patterns", overlay.allowed_route_patterns),
+                )
+                if v is not None
+            }
+        )
+
     # Round-tripping through model_validate (not model_copy, which skips
     # validation) is the whole point: every cross-field invariant
     # Capability already enforces -- duplicate ids, dangling references,
@@ -104,6 +117,7 @@ def apply_overlay(base: Capability, overlay: Overlay) -> Capability:
             "status": "draft",  # a resolved overlay is new composition -- review it, don't inherit approval
             "inputs": [*base_dict["inputs"], *(p.model_dump(mode="json") for p in overlay.add_inputs)],
             "steps": [s.model_dump(mode="json") for s in steps],
+            "app_profile": app_profile.model_dump(mode="json"),
             "provenance": {**base_dict["provenance"], "human_edited": True},
         }
     )

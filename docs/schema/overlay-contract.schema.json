@@ -401,6 +401,33 @@
       "title": "Add Inputs",
       "type": "array"
     },
+    "allowed_route_patterns": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Allowed Route Patterns"
+    },
+    "base_url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Base Url"
+    },
     "extends": {
       "title": "Extends",
       "type": "string"

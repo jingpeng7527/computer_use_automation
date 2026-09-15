@@ -71,13 +71,23 @@ Run these in order, each in its own terminal where noted.
 #    fails with status: failed, kind: not_approved.
 .venv/bin/cua approve --artifact artifacts/acme_core.lookup_savings_balance/1.json
 
-# 4. replay: deterministic re-run of that artifact, no LLM, valid input
+# 4. scope: declare what THIS capability is allowed to touch, narrower than
+#    policy.yaml's own global allowlist (REPORT.md sec 6). This is a ceiling,
+#    not a grant -- it can only shrink the effective allowlist, never widen it.
+.venv/bin/cua set-scope \
+  --artifact artifacts/acme_core.lookup_savings_balance/1.json \
+  --base-url http://127.0.0.1:8800 \
+  --allowed-route-pattern "/members/*"
+# -> resets status to "draft" (a scope change is a reviewable change); approve again
+.venv/bin/cua approve --artifact artifacts/acme_core.lookup_savings_balance/1.json
+
+# 5. replay: deterministic re-run of that artifact, no LLM, valid input
 .venv/bin/cua replay \
   --artifact artifacts/acme_core.lookup_savings_balance/1.json \
   -p member_id=12345
 # -> status: success, typed Money output
 
-# 5. hardening: observe a real failure mode (no LLM) and bake it into the artifact
+# 6. hardening: observe a real failure mode (no LLM) and bake it into the artifact
 #    as a runtime_match, so replay can classify it as a business outcome next time.
 #    A hardened artifact is new, unreviewed behaviour, so it comes back "draft"
 #    even though its base was approved -- approve it again before replaying it.
@@ -90,16 +100,16 @@ Run these in order, each in its own terminal where noted.
   -p member_id=99999 \
   --detect-text "No member records match" \
   --outcome-code MEMBER_NOT_FOUND
-# -> artifacts/acme_core.lookup_savings_balance/2.json (status: "draft")
+# -> artifacts/acme_core.lookup_savings_balance/2.json (status: "draft", inherits scope)
 .venv/bin/cua approve --artifact artifacts/acme_core.lookup_savings_balance/2.json
 
-# 6. replay against the hardened artifact with input that hits that outcome
+# 7. replay against the hardened artifact with input that hits that outcome
 .venv/bin/cua replay \
   --artifact artifacts/acme_core.lookup_savings_balance/2.json \
   -p member_id=99999
 # -> status: business_outcome, code MEMBER_NOT_FOUND (not a crash)
 
-# 7. escalation and handoff: force a failure, take control of the same live
+# 8. escalation and handoff: force a failure, take control of the same live
 #    browser session, fix it by hand, hand back, watch replay resume and finish
 .venv/bin/cua replay \
   --artifact artifacts/acme_core.lookup_savings_balance/2.json \
@@ -137,6 +147,14 @@ mounts both tenants).
 
 .venv/bin/cua approve --artifact artifacts/acme_core.lookup_savings_balance.cu_northgate/1.json
 
+# the overlay itself declares this tenant's own scope
+# ("allowed_route_patterns": ["/tenant-b/*"], overlays/.../cu_northgate.json)
+# -- apply_overlay() merges it into the resolved artifact's app_profile, so
+# nothing extra needs running here. Pointing this same resolved artifact's
+# entry step at the BASE tenant's /members/search instead (not shown) is
+# refused with policy_blocked, naming that declared pattern as the reason,
+# even though /members/search is well within policy.yaml's own allowlist.
+
 # same capability, same outputs shape, a surface it was never recorded on
 .venv/bin/cua replay \
   --artifact artifacts/acme_core.lookup_savings_balance.cu_northgate/1.json \
@@ -164,7 +182,8 @@ The Pydantic contracts are rendered into version-controlled diagrams under
 [`docs/schema/`](docs/schema/). Solid arrows show typed containment; the separate
 `semantic-references.svg` uses dashed arrows for string IDs and templates. The
 Capability artifact's cross-field validators enforce the relevant live relations;
-the overlay links document the planned multi-tenant stretch.
+the overlay links document the multi-tenant resolution `apply_overlay()` actually
+performs (see the demo above), not a planned one.
 
 ```bash
 brew install graphviz # macOS, once

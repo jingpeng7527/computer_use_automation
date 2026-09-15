@@ -459,6 +459,7 @@ version: 2
 # tenant overlay, stores differences only
 extends: "acme_core.lookup_savings_balance@2"
 tenant_id: "cu_northgate"
+allowed_route_patterns: ["/tenant-b/*"]   # this tenant's own declared scope (Section 6)
 add_inputs:
   - { name: branch, type: string, required: true }   # this tenant has a mandatory branch selector
 overrides:
@@ -525,12 +526,16 @@ the live browser, actually `required`) branch selector the base tenant's build d
 all, a differently-classed detail-view control, and an abbreviated balance-row label. Deliberately
 *unchanged*: the "Search" button's accessible name and the "Member Detail" heading, both of which
 survive across real UI builds, so the overlay overrides five things and leaves two of the base
-artifact's five steps completely untouched. `evidence/replay-20260915221443/` and
-`evidence/replay-20260915221453/` are the same resolved capability -- literally the same JSON file
+artifact's five steps completely untouched. `evidence/replay-20260915224332/` and
+`evidence/replay-20260915224345/` are the same resolved capability -- literally the same JSON file
 -- correctly returning `SUCCESS` with a typed `Money` output and `BUSINESS_OUTCOME /
 MEMBER_NOT_FOUND` against that second, genuinely different surface, with no override needed for
 the outcome detection at all (its wording happens to match on both builds, so nothing had to name
-it in the overlay).
+it in the overlay). The overlay also declares this tenant's own scope
+(`allowed_route_patterns: ["/tenant-b/*"]`, Section 6) -- verified directly, not just declared:
+pointing a copy of the same resolved artifact's entry step at the base tenant's `/members/search`
+instead is refused with `policy_blocked`, naming the declared pattern that excluded it, even
+though that route is well within `policy.yaml`'s own global allowlist.
 
 Cut from this section: the drift dashboard. The layer-hit telemetry it would consume is real and
 already emitted per step by every replay in `evidence/`; aggregating it across tenants and alerting
@@ -686,6 +691,23 @@ refused. Allowlisting rather than blocklisting, because a blocklist cannot be co
 step names a target outside the allowlist, the step is refused regardless of what the artifact
 says, and the refusal is a hard failure with its own code.
 
+A capability can additionally declare its own expected scope --
+`AppProfile.base_url` / `allowed_route_patterns` -- and the executor takes the intersection:
+`effective scope = policy.yaml's allowlist ∩ the capability's own declared scope ∩ any tenant
+override's scope`. This is a narrowing, never a grant: an artifact with neither field set is
+scoped by `policy.yaml` alone, exactly as before this existed, and one that declares a scope
+`policy.yaml` doesn't already permit stays refused (checked against the global allowlist first).
+The point is reviewability, not a second security boundary -- a human approving a capability can
+see, in the one file they're reviewing, exactly which routes it's meant to touch, instead of
+cross-referencing `policy.yaml` to infer it. It also gives multi-tenant reuse a real enforcement
+hook: `cu_northgate`'s overlay declares `allowed_route_patterns: ["/tenant-b/*"]`, so that resolved
+capability cannot wander into the base tenant's `/members/*` routes even though both are inside
+the same globally-allowed origin -- verified directly: pointing a copy of it at `/members/search`
+is refused with `policy_blocked`, naming the declared pattern that excluded it, not the global
+allowlist (which would have allowed that path fine). `cua set-scope` is the CLI command that
+declares this on an artifact; like `cua tag-output`, it resets status to `draft`, since it changes
+the enforced boundary the capability runs inside.
+
 **Risk tiers.** Every action carries a level, and the executor gates on it:
 
 | Tier | Examples | Unattended replay |
@@ -832,8 +854,8 @@ file in that tree:
 | `replay-20260915044639` | v2 (hardened, then approved), an id with no record | `BUSINESS_OUTCOME / MEMBER_NOT_FOUND` |
 | `replay-20260915044645` | injected 500 on the entry page | `FAILURE`, with a captured screenshot |
 | `demo-handoff-1789447614` | the same injected-500 fault, escalated instead of just failed | `FAILURE` -> operator claims, fixes, releases -> `SUCCESS` on resume |
-| `replay-20260915221443` | the `cu_northgate` overlay resolved from v2 and approved, replayed against the SECOND tenant's mock app, a valid member id | `SUCCESS`, same typed `Money` output, on a genuinely different surface |
-| `replay-20260915221453` | same resolved tenant artifact, an id with no record | `BUSINESS_OUTCOME / MEMBER_NOT_FOUND`, with no outcome-detection override needed |
+| `replay-20260915224332` | the `cu_northgate` overlay resolved from v2 and approved, replayed against the SECOND tenant's mock app, a valid member id | `SUCCESS`, same typed `Money` output, on a genuinely different surface |
+| `replay-20260915224345` | same resolved tenant artifact, an id with no record | `BUSINESS_OUTCOME / MEMBER_NOT_FOUND`, with no outcome-detection override needed |
 
 `demo-handoff-1789447614` is the one worth reading for the handoff mechanism; the two
 `cu_northgate` runs are the one worth reading for Section 4's multi-tenant claim, since they are

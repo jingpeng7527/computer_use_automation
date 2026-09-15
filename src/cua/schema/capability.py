@@ -28,10 +28,24 @@ class AppProfile(BaseModel):
     """The one version field in this file that is a fact about the world,
     not about us: which vendor product/build this was recorded against.
     `schema_version` versions this file format; `Capability.version` versions
-    the capability itself; only `AppProfile.version` is external."""
+    the capability itself; only `AppProfile.version` is external.
+
+    `base_url` and `allowed_route_patterns` are optional, additional scope
+    a capability can declare for itself -- not a second allowlist, a
+    NARROWING of the one policy.yaml already enforces. A reviewer reading
+    this file can see exactly which routes a capability is meant to touch,
+    without cross-referencing policy.yaml; the executor still enforces
+    policy.yaml's own allowlist independently and takes the intersection
+    (safety/allowlist.py's check_allowed), so an artifact can restrict its
+    own reach but never grant itself anything the global policy wouldn't
+    already allow. Both default empty/unset, meaning "no additional
+    narrowing" -- an artifact that predates this field behaves exactly as
+    before."""
 
     product: str
     version: str
+    base_url: str | None = None
+    allowed_route_patterns: list[str] = Field(default_factory=list)
 
 
 class ParamSpec(BaseModel):

@@ -65,3 +65,10 @@ class Overlay(BaseModel):
     # separate from `overrides` because it changes the capability's own
     # I/O contract, not just its steps.
     add_inputs: list[ParamSpec] = Field(default_factory=list)
+    # Replaces AppProfile.base_url / allowed_route_patterns for this
+    # tenant's resolved capability -- the artifact-declared scope
+    # safety/allowlist.py intersects with policy.yaml's own allowlist.
+    # None/empty means "keep the base's declared scope unchanged"; this is
+    # itself still only ever a NARROWING of policy.yaml, never a grant.
+    base_url: str | None = None
+    allowed_route_patterns: list[str] | None = None

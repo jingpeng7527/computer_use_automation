@@ -1,6 +1,7 @@
 {
   "extends": "acme_core.lookup_savings_balance@2",
   "tenant_id": "cu_northgate",
+  "allowed_route_patterns": ["/tenant-b/*"],
   "add_inputs": [
     {
       "name": "branch",

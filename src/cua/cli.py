@@ -5,6 +5,7 @@
     cua harden           # replay with bad input (no LLM), derive a runtime_match
     cua approve          # promote a draft artifact to approved -- replay refuses drafts
     cua tag-output       # mark a declared output's sensitivity for replay-time redaction
+    cua set-scope        # declare a capability's own base_url/route scope (narrows policy.yaml)
     cua replay           # deterministic replay of an artifact (no LLM)
     cua overlay apply    # resolve a base artifact + a tenant overlay -> a tenant artifact
     cua ops              # claim/release/status -- the human side of a handoff
@@ -611,6 +612,56 @@ def overlay_apply(
         f"resolved {overlay_doc.tenant_id!r} -> {saved_path} "
         f"(status: draft -- run `cua approve` before replay)",
         fg=typer.colors.GREEN,
+    )
+
+
+@app.command("set-scope")
+def set_scope(
+    artifact: str = typer.Option(..., help="Path to a saved capability artifact (JSON)."),
+    base_url: str = typer.Option(None, help="Restrict this capability to destinations starting with this URL."),
+    allowed_route_pattern: list[str] = typer.Option(
+        None, "--allowed-route-pattern", help="Glob route pattern this capability may touch (repeatable)."
+    ),
+) -> None:
+    """Declare a capability's own expected scope -- an ADDITIONAL narrowing
+    of policy.yaml's allowlist, never a wider grant (safety/allowlist.py's
+    check_allowed takes the intersection of the two). Lets a reviewer see,
+    from the artifact alone, exactly which routes it's meant to touch,
+    without cross-referencing policy.yaml. Resets status to draft: this
+    changes the enforced boundary the capability runs inside, which is
+    exactly the kind of change the approval gate exists to have a human
+    look at again."""
+    from pathlib import Path
+
+    from pydantic import ValidationError
+
+    from cua.schema import ArtifactStore, Capability
+
+    if base_url is None and not allowed_route_pattern:
+        typer.secho("pass --base-url and/or --allowed-route-pattern (at least one).", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    capability = Capability.model_validate_json(Path(artifact).read_text())
+    app_profile = capability.app_profile.model_dump(mode="json")
+    if base_url is not None:
+        app_profile["base_url"] = base_url
+    if allowed_route_pattern:
+        app_profile["allowed_route_patterns"] = allowed_route_pattern
+
+    try:
+        updated = Capability.model_validate(
+            {**capability.model_dump(mode="json"), "app_profile": app_profile, "status": "draft"}
+        )
+    except ValidationError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    saved_path = ArtifactStore().save(updated)
+    typer.secho(
+        f"scope set: base_url={updated.app_profile.base_url!r} "
+        f"allowed_route_patterns={updated.app_profile.allowed_route_patterns!r}; saved to {saved_path} "
+        f"(status: draft -- run `cua approve` before replay)",
+        fg=typer.colors.YELLOW,
     )
 
 
