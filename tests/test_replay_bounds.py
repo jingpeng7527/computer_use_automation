@@ -1,10 +1,16 @@
 """Execution bounds enforced by replay itself -- no browser, no LLM.
 
-Regression coverage for two real gaps: replay never ran an ExecutionGuard
-at all (so an artifact's own step list was the only ceiling), and a
-recoverable runtime_match's own `max_retries` was never checked -- only the
+Regression coverage for three real gaps: replay never ran an ExecutionGuard
+at all (so an artifact's own step list was the only ceiling); a recoverable
+runtime_match's own `max_retries` was never checked -- only the
 capability's aggregate `recovery_budget.per_run`, which meant one flaky
-matcher could retry all the way up to that shared budget by itself.
+matcher could retry all the way up to that shared budget by itself; and
+`ExecutionGuard.use_recovery()` was never called at all, so
+`policy.execution_bounds.recovery_budget_per_run` -- the actual hard
+ceiling policy.yaml documents -- did nothing. An artifact could declare
+`recovery_budget.per_run` far above the policy value and replay would
+honour it, caught only by max_steps instead of the recovery-specific bound
+meant to catch it.
 """
 
 from __future__ import annotations
@@ -21,6 +27,7 @@ from cua.schema import (
     Provenance,
     Read,
     RecoveryAction,
+    RecoveryBudget,
     RoleName,
     RoleNameStrategy,
     RuntimeMatch,
@@ -62,13 +69,16 @@ class _FakeAdapter:
         return HERE
 
 
-def _capability(runtime_matches: list[RuntimeMatch], **step_kwargs) -> Capability:
+def _capability(
+    runtime_matches: list[RuntimeMatch], recovery_budget: RecoveryBudget | None = None, **step_kwargs
+) -> Capability:
     return Capability(
         capability_id="test.bounds",
         title="Bounds test",
         summary="A minimal capability existing only to test replay's own execution bounds.",
         app_profile=AppProfile(product="test", version="0"),
         outputs=[OutputSpec(name="x", type="string", description="test output", source_step_id="s0")],
+        recovery_budget=recovery_budget or RecoveryBudget(),
         steps=[
             Step(
                 id="s0",
@@ -158,3 +168,34 @@ def test_wait_timeout_is_clamped_to_the_policy_ceiling() -> None:
     replay(capability, {}, adapter, POLICY, run_id="test-run")
 
     assert adapter.last_wait_timeout_ms == POLICY.execution_bounds.per_wait_timeout_ms
+
+
+def test_policy_recovery_budget_is_a_hard_ceiling_the_artifact_cannot_raise() -> None:
+    """The artifact declares recovery_budget.per_run=100 -- far above
+    policy's default of 5 -- and each match's own max_retries is set high
+    enough not to be the thing that stops this run. If the policy ceiling
+    (ExecutionGuard.use_recovery) isn't actually enforced, this keeps
+    retrying past 5 all the way to 100 (or until max_steps, a different
+    bound doing a job this one should do)."""
+    dialog_snapshot = [
+        _node(role="textbox", name="Balance", node_id="n_target"),
+        _node(role="dialog", name="Session Warning", node_id="n_dialog"),
+    ]
+    match = RuntimeMatch(
+        id="dialog_recover",
+        category="recoverable",
+        terminal=False,
+        detect=RoleName(role="dialog", name="Session Warning"),
+        after_step="s0",
+        max_retries=100,
+        recovery=RecoveryAction(do="dismiss_dialog", target_role="dialog", target_name="Session Warning"),
+    )
+    capability = _capability([match], recovery_budget=RecoveryBudget(per_run=100))
+    adapter = _FakeAdapter(dialog_snapshot)
+
+    assert POLICY.execution_bounds.recovery_budget_per_run < 100  # the test assumption holds
+    result = replay(capability, {}, adapter, POLICY, run_id="test-run")
+
+    assert result.status == "failed"
+    assert result.failure.kind == "recovery_exhausted"
+    assert result.failure.expected == "within policy.execution_bounds.recovery_budget_per_run"

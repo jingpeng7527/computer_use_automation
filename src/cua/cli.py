@@ -196,13 +196,20 @@ def discover(
         }
         for s in transcript.steps
     ]
-    # Declared outputs are the capability's actual answer, not an incidental
-    # leak -- REPORT.md sec 6 is explicit that these are not redacted here
-    # either; a hardening pass is what later tags a specific output as
-    # sensitive, and only then does replay mask it (engine.py's
-    # _redact_outputs). Discovery evidence reports outputs the same way.
+    # NOT the same "declared outputs aren't redacted" rule replay follows
+    # (engine.py's _redact_outputs) -- that rule presumes an OutputSpec
+    # whose sensitivity a human has already reviewed. At discovery time no
+    # such review has happened yet: the goal could just as easily have been
+    # "read the account holder's name and SSN", and whatever the model
+    # actually read lands in `transcript.outputs` with no OutputSpec, no
+    # sensitivity tag, nothing to gate on -- compile_capability defaults a
+    # fresh OutputSpec to sensitivity="none", and hardening never revisits
+    # it. So the regex fallback pass applies here too, same as every other
+    # free-text field above; a legitimate-looking value like "$8160.00 USD"
+    # matches no pattern and passes through untouched.
+    outputs_evidence = {k: _sanitize(v) for k, v in transcript.outputs.items()}
     transcript_json = json.dumps(
-        {"goal": goal_evidence, "target": target, "steps": steps_evidence, "outputs": transcript.outputs},
+        {"goal": goal_evidence, "target": target, "steps": steps_evidence, "outputs": outputs_evidence},
         indent=2,
     )
     (evidence_dir / "transcript.json").write_text(transcript_json)
@@ -215,7 +222,7 @@ def discover(
         "model": actual_model,
         "success": transcript.success,
         "reason": _sanitize(transcript.reason),
-        "outputs": transcript.outputs,
+        "outputs": outputs_evidence,
         "step_count": len(transcript.steps),
         "duration_s": round(duration_s, 2),
     }

@@ -12,8 +12,10 @@ reading "no member records match" will never satisfy a checkpoint
 expecting a balance heading, and waiting for that assertion to time out
 would turn a business outcome into a slow, misreported failure.
 
-Recoverable entries retry the SAME step, bounded three ways -- a
-per-matcher `max_retries`, the capability's `recovery_budget.per_run`, and
+Recoverable entries retry the SAME step, bounded four ways -- a per-matcher
+`max_retries`, the capability's own `recovery_budget.per_run`,
+`policy.execution_bounds.recovery_budget_per_run` as the actual hard
+ceiling the artifact's budget can only tighten and never loosen, and
 depth=1 (a recovery action never re-enters this dispatch, so nesting is
 structurally impossible, not merely disallowed).
 """
@@ -24,6 +26,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from cua.escalation import ControlBroker, find_resume_point, raise_intervention
 from cua.safety import (
@@ -211,7 +214,15 @@ def _typed_value(raw: str, output_type: str) -> OutputValue:
     if output_type == "money":
         m = _MONEY_PARSE_RE.match(raw.strip())
         if m:
-            return Money(amount_minor=round(float(m.group(1).replace(",", "")) * 100), currency=m.group(2))
+            # Decimal, not float: a float can't represent every two-decimal
+            # dollar amount exactly, and at large magnitudes that shows up
+            # as real cents lost (verified: "$99999999999999.99" rounds to
+            # 9999999999999998 minor units via float*100, one cent short of
+            # the correct 9999999999999999). REPORT.md promises money is
+            # "never a float" -- true of the final type, but not previously
+            # true of the arithmetic that produced it.
+            cents = (Decimal(m.group(1).replace(",", "")) * 100).to_integral_value()
+            return Money(amount_minor=int(cents), currency=m.group(2))
     elif output_type == "integer":
         try:
             return int(raw.strip())
@@ -459,12 +470,17 @@ def _apply_match(
         )
         return
 
-    # recoverable -- bounded two ways, per REPORT.md sec 3: a per-matcher
+    # recoverable -- bounded three ways, per REPORT.md sec 3: a per-matcher
     # max_retries (this condition specifically keeps recurring and isn't
-    # getting better) AND the capability's aggregate recovery_budget.per_run
-    # (too many DIFFERENT conditions fired this run). Checking only the
-    # aggregate would let one flaky matcher retry forever up to that shared
-    # ceiling, which is not what a per-matcher budget on the schema promises.
+    # getting better), the capability's own recovery_budget.per_run (too
+    # many DIFFERENT conditions fired this run), AND
+    # policy.execution_bounds.recovery_budget_per_run -- the actual hard
+    # ceiling policy.yaml documents this as. The artifact's own budget can
+    # only tighten that ceiling, never loosen it: checking only the
+    # artifact's declared value would let a mis-declared (or malicious)
+    # artifact set recovery_budget.per_run arbitrarily high and retry well
+    # past what policy allows, caught only by max_steps -- a different
+    # bound doing a job this one is supposed to do itself.
     match_retries = state.match_retry_counts.get(match.id, 0)
     if match_retries >= match.max_retries:
         _stop_failed(
@@ -476,10 +492,18 @@ def _apply_match(
         )
         return
 
-    budget = state.capability.recovery_budget
-    if state.recovery_used >= budget.per_run:
+    if state.recovery_used >= state.capability.recovery_budget.per_run:
         _stop_failed(
             state, step, kind="recovery_exhausted", expected="recovery budget remaining", observed=match.id
+        )
+        return
+    if not state.guard.use_recovery():
+        _stop_failed(
+            state,
+            step,
+            kind="recovery_exhausted",
+            expected="within policy.execution_bounds.recovery_budget_per_run",
+            observed=match.id,
         )
         return
     if match.recovery is None:

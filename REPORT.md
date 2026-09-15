@@ -198,7 +198,8 @@ sensitivity is not declared in the artifact.
 states, each classified as business outcome, recoverable or hard failure, plus a top-level
 `success_condition` for the capability as a whole. Per-step checkpoints prove each step landed;
 the success condition proves the capability delivered. Recoverable entries also carry their own
-bounds (`max_retries`), which Section 3 completes with two global ones.
+bounds (`max_retries`), which Section 3 completes with the capability's own aggregate budget and,
+underneath that, a policy-level ceiling the artifact can tighten but never raise.
 
 **Targeting is a ranked list, not a selector.** Four strategies in fixed order:
 
@@ -332,10 +333,15 @@ with non-incidents and bury the real ones. Concretely, three result shapes:
 (field names and casing above are the actual `ReplayResult`/`FailureDetail`/`BusinessOutcomeResult`
 shapes, taken from committed evidence rather than restated from memory.)
 
-**Recovery is bounded in three ways, and the structural one does most of the work.** Recovery
+**Recovery is bounded in four ways, and the structural one does most of the work.** Recovery
 actions are declared on the `runtime_matches` entry that detects the condition, not on a step, so
-a given interstitial is described once and handled wherever it appears. Three bounds apply:
-`max_retries` per matcher, a per-run recovery budget, and a maximum recovery depth of one.
+a given interstitial is described once and handled wherever it appears. Four bounds apply:
+`max_retries` per matcher, the capability's own aggregate recovery budget,
+`policy.execution_bounds.recovery_budget_per_run` as the actual hard ceiling the artifact's own
+budget can tighten but never exceed, and a maximum recovery depth of one. The policy ceiling
+matters for the same reason risk tiering is assigned by the executor rather than trusted from the
+artifact (Section 6): a capability's own declared budget is data, and data does not get to widen
+its own limits.
 
 The depth bound is the important one. A recovery action does not itself get a recovery branch: it
 runs, control returns to the main flow, and the step is retried. If the condition reappears it
