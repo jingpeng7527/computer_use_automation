@@ -23,6 +23,7 @@ of every committed run and the exact command that produced it.
 | `src/cua/safety/` | Allowlist, risk tiers, execution bounds, redaction |
 | `src/cua/escalation/` | Stuck detection, SQLite control-transfer broker, `ops` CLI |
 | `src/cua/overlay/` | Multi-tenant overlay resolution (`apply_overlay`) |
+| `src/cua/observability/` | Cross-run locator-layer drift aggregation (`cua drift-report`) |
 | `docs/schema/` | Generated Pydantic JSON Schema, DOT, and reviewable SVG contract diagrams |
 | `config/policy.yaml` | Allowlist, risk tiers, redaction rules, execution bounds |
 | `artifacts/` | Saved capability artifacts (one JSON file per version) |
@@ -173,6 +174,20 @@ mounts both tenants).
   --artifact artifacts/acme_core.lookup_savings_balance.cu_northgate/1.json \
   -p member_id=99999 -p branch=main
 # -> status: business_outcome, code MEMBER_NOT_FOUND
+```
+
+## Drift report
+
+Every replay already records which locator layer resolved each step (`locator_layer_hit`).
+`cua drift-report` aggregates that across every run in `evidence/`, per `(capability, step)`, and
+flags a step that's been landing steadily deeper than where it first resolved -- a signal that the
+underlying UI moved and the artifact needs a new version or tenant override, not a one-off blip
+(REPORT.md sec 3/7).
+
+```bash
+.venv/bin/cua drift-report
+# -> one line per (capability, step): baseline layer, latest layer, status, and the
+#    full history -- exits non-zero if anything is classified "drifting"
 ```
 
 ## Tests

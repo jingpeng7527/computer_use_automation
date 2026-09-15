@@ -387,9 +387,23 @@ exists.
 
 **Drift, secondarily.** Because the underlying UIs change slowly, drift is treated as a signal to
 collect rather than a condition to recover from at runtime. Each resolution records the layer
-that succeeded. Repeated demotion from layer 1 to layer 2 across runs marks the artifact for
-review. The system does not attempt to self-heal a changed UI during a replay; silently adapting
-is exactly the non-determinism the artifact exists to remove.
+that succeeded (`StepResult.locator_layer_hit`). The system does not attempt to self-heal a
+changed UI during a replay; silently adapting is exactly the non-determinism the artifact exists
+to remove.
+
+`cua drift-report` (`src/cua/observability/drift.py`) turns that per-run recording into the
+actual cross-run signal: it scans every `evidence/*/result.json`, groups `locator_layer_hit` by
+`(capability_id, step_id)` in the order those runs really happened (`started_at`, not directory or
+run-id string order, which a hand-timestamped run_id and a start time can disagree on), and
+classifies the trend. A single deeper hit is `occasional` -- a locator can miss a layer once on a
+slow paint and resolve fine the next run, and flagging that identically to a real change would
+train whoever reads the report to ignore it. `drifting` requires the last `persistence_window`
+(default 3) runs of the same step to ALL land deeper than where that step first resolved --
+`tests/test_layer_drift.py` has a case for each status, including the one that makes the
+distinction matter: a lone deeper hit sandwiched between two baseline ones stays `stable`, not
+`drifting`. Run live against every real evidence file committed to this repo, it reports
+`[stable]` on all nine tracked steps, correctly, since none of them has yet seen a real repeated
+markup change across runs -- an honest negative, not a fabricated positive.
 
 ---
 
@@ -547,9 +561,11 @@ pointing a copy of the same resolved artifact's entry step at the base tenant's 
 instead is refused with `policy_blocked`, naming the declared pattern that excluded it, even
 though that route is well within `policy.yaml`'s own global allowlist.
 
-Cut from this section: the drift dashboard. The layer-hit telemetry it would consume is real and
-already emitted per step by every replay in `evidence/`; aggregating it across tenants and alerting
-on a rate crossing a threshold is reporting infrastructure, not design, and is listed in Section 7.
+Not cut, in the end: `cua drift-report` (Section 3) aggregates exactly this telemetry -- across
+tenants too, since it groups by `capability_id`, and `acme_core.lookup_savings_balance` and its
+`cu_northgate` overlay resolution are different capability ids in the same `evidence/` tree. What
+is still not built is alerting on a threshold crossing in CI; the command's own non-zero exit code
+on a `drifting` verdict is the hook a CI step would need, just not wired to one yet.
 
 ---
 
@@ -821,7 +837,6 @@ Everything below is a deliberate omission with the seam left in place, not an un
 | Cut | Why | What exists |
 |---|---|---|
 | Desktop and vision adapters | Brief does not ask for them; the argument is the seam, not a second implementation | `SurfaceAdapter` protocol; nothing above it is browser-specific |
-| Drift dashboard | Reporting infrastructure, not design | Per-run layer-hit telemetry in the logs |
 | Operator web console | Explicitly mockable per the brief | CLI claim/release against the real broker |
 | Queues, workers, service split | Explicitly not rewarded; the boundaries are what matter | Four interfaces at the four cut points |
 | Postgres / object storage | Files satisfy the reviewability and versioning requirements at this scale | `ArtifactStore` with three methods |
@@ -859,13 +874,17 @@ not a hand-edited one.
 *Overlay resolver and a second tenant.* Section 4 covers this one in full -- `apply_overlay()`, a
 fourth override op (`replace_value`) the original three couldn't express, a genuine second tenant
 mock (`/tenant-b/...`), and both `SUCCESS` and `BUSINESS_OUTCOME` demonstrated against it with the
-same resolved artifact. Not built: the drift *dashboard* -- aggregating layer-hit telemetry across
-tenants and alerting on it -- which stays in the list below.
+same resolved artifact.
+
+*Layer-hit drift aggregation.* `cua drift-report` (Section 3) also turned out buildable in scope:
+it aggregates the per-run `locator_layer_hit` telemetry every replay already emits, across
+capabilities and tenants alike, and distinguishes a persistent demotion (`drifting`) from a
+one-off blip (`occasional`) rather than firing on both identically.
 
 **What I would build next, in order**
 
-1. *A drift dashboard,* aggregating the per-run layer-hit telemetry every replay already emits
-   across tenants, and alerting when one starts falling to a deeper layer than the others.
+1. *Wire `cua drift-report`'s exit code into CI,* so a `drifting` verdict actually blocks a merge
+   instead of requiring someone to run the command by hand.
 2. *Desktop adapter against one real legacy application.* The seam is designed for it, but an
    argument is not a test, and this is where the design would actually be falsified.
 3. *Bounded assisted recovery,* with the budget and policy checks it requires.

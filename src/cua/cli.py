@@ -9,6 +9,7 @@
     cua replay           # deterministic replay of an artifact (no LLM)
     cua overlay apply    # resolve a base artifact + a tenant overlay -> a tenant artifact
     cua ops              # claim/release/status -- the human side of a handoff
+    cua drift-report     # aggregate locator_layer_hit across runs into a per-step drift signal
     cua catalog          # list saved capability artifacts
 
 Only `discover` ever calls an LLM.
@@ -669,6 +670,26 @@ def set_scope(
         f"(status: draft -- run `cua approve` before replay)",
         fg=typer.colors.YELLOW,
     )
+
+
+@app.command("drift-report")
+def drift_report(
+    evidence_dir: str = typer.Option("evidence", help="Directory containing one subdirectory per run."),
+    persistence_window: int = typer.Option(
+        3, help="how many of the most recent runs must ALL be deeper than baseline to count as 'drifting'."
+    ),
+) -> None:
+    """Aggregate every run's locator_layer_hit (already recorded per step by
+    replay) into a per-(capability, step) drift signal: a step landing
+    steadily deeper than where it used to resolve means the app changed
+    underneath the artifact and it's due for a new version or a tenant
+    override (REPORT.md sec 7)."""
+    from cua.observability import aggregate_layer_drift, render_drift_report
+
+    reports = aggregate_layer_drift(evidence_dir, persistence_window=persistence_window)
+    typer.echo(render_drift_report(reports))
+    if any(r.status == "drifting" for r in reports):
+        raise typer.Exit(code=1)
 
 
 @app.command()
