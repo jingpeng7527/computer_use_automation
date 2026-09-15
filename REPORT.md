@@ -379,6 +379,15 @@ into the same step-execution path every attempt already goes through, so the ord
 refuses or escalates it before a checkpoint can even fail a second time -- there is no point at
 which `retry_step` on an `IRREVERSIBLE` step is ever actually reached.
 
+Both layers have real evidence, not just unit tests, though the schema-level one necessarily
+does (there is no "live" version of an artifact that was refused before it could exist):
+`evidence/recovery-refused-schema-*/validation_error.txt` is the actual `pydantic.ValidationError`
+raised attempting to construct one. The runtime backstop's evidence,
+`evidence/recovery-refused-runtime-*/result.json`, runs the real `replay()` engine against a
+scripted surface (the mock target app has no fixture that can genuinely get a `REVERSIBLE_WRITE`
+step stuck behind a dialog); its `NOTE.md` says exactly that, and confirms `click_count == 1` --
+the guard refuses before a second click, not after one already landed twice.
+
 This class also absorbs what looks like a need for conditional branching. "A compliance notice
 appears on the first login of the month and not otherwise" needs no branch: it is a recoverable
 matcher, so it is dismissed when present and never matches when absent. Optional interstitials
@@ -680,7 +689,14 @@ the operator's fix just didn't work. Automatic re-authentication is deliberately
 would require the system to hold credentials, which Section 6 forbids, and it would produce a new
 session, which is the one thing the brief's takeover requirement rules out. Reporting honestly
 that the session is gone is better than resuming into a session that is not the one the work
-started in.
+started in. `evidence/session-lost-20260915234907/` runs this for real: the actual `replay()`
+engine, a real SQLite `ControlBroker` with two independent connections claiming and releasing
+across a real thread boundary (mirroring the two real OS processes `cua replay`/`cua ops` are in
+production), and a real operator note left on release -- only the `SurfaceAdapter` is scripted,
+since the mock app still has no session-expiry mechanism to trigger this against a real page.
+`result.json`'s `failure.observed` (`"now at http://evil.example.com/login"`) and its
+`human_action.json` (`resume_decision: "none"`, disagreeing with the release note, same point as
+`replay-20260915230202/` above) are both genuine output of that real code, not hand-written.
 
 **What is mocked, and why.** The operator console is a CLI (`ops claim <id>`, `ops release <id>`).
 The brief permits mocking the operator UI provided the handoff mechanism and control-transfer
@@ -792,6 +808,12 @@ default-deny posture as the allowlist above. A fresh discovery run always emits 
 would gate on a signed review. This also means an artifact hardening produces is `draft` again even
 when its base was `approved`: a new `runtime_match` is new, unreviewed behaviour, and letting it
 inherit approval from an unrelated review would make the gate provable but not actually load-bearing.
+`evidence/replay-20260915235033/` is this refused live, on the real, currently-approved
+`acme_core.lookup_savings_balance` v2 artifact: `cua set-scope` was run with its own existing
+values (which still resets status to `draft`, correctly -- any change to the enforced boundary
+needs a fresh review even if the values didn't actually move), then `cua replay` against that
+now-draft artifact refused in 0.37s, before the browser was ever touched. `cua approve` was run
+immediately after to restore it; the artifact's `git diff` is empty.
 
 **Execution bounds.** A loop that never terminates is a guardrail failure, not merely a cost
 problem: an unbounded agent loop is repeatedly clicking a real back-office application. Every
@@ -908,7 +930,7 @@ one-off blip (`occasional`) rather than firing on both identically.
 
 **The one thing that is not a cut.** The discovery run is real: a live LLM-driven run against the
 mock portal, with the transcript, the emitted artifact and the resulting replay in `/evidence/`.
-The brief is unambiguous that this cannot be described in place of being done. Eight runs are
+The brief is unambiguous that this cannot be described in place of being done. Twelve runs are
 committed, indexed in `evidence/README.md`, and every path quoted in this document resolves to a
 file in that tree:
 
@@ -922,11 +944,20 @@ file in that tree:
 | `replay-20260915224332` | the `cu_northgate` overlay resolved from v2 and approved, replayed against the SECOND tenant's mock app, a valid member id | `SUCCESS`, same typed `Money` output, on a genuinely different surface |
 | `replay-20260915224345` | same resolved tenant artifact, an id with no record | `BUSINESS_OUTCOME / MEMBER_NOT_FOUND`, with no outcome-detection override needed |
 | `replay-20260915230202` | same injected-500 fault, escalated; operator claims and releases WITHOUT fixing anything (`--note "checked the page, fault still present..."`) | `FAILURE` on resume, `human_action.json` records `resume_decision: "none"`, `human_performed_pending_action: false` -- the derived fact disagreeing with a good-faith note is the point of this run |
+| `replay-20260915235033` | the real, approved v2 artifact, reset to `draft` via `cua set-scope` (its own existing values -- see the row's `NOTE.md`), then replayed | `FAILURE`, kind `not_approved`, in 0.37s -- refused before the browser is touched. `cua approve` restored v2 immediately after; its `git diff` is empty |
+| `recovery-refused-schema-20260915234907` | attempted to construct a `Capability` declaring `retry_step` on a `Click` step | Real `pydantic.ValidationError` -- **scripted, no browser**, see `NOTE.md` |
+| `recovery-refused-runtime-20260915234907` | real `replay()`, same class of artifact but with `after_step: null` (the shape the schema check can't catch statically) | `FAILURE`, kind `recovery_refused`, `click_count == 1` -- **scripted surface**, see `NOTE.md` |
+| `session-lost-20260915234907` | real `replay()` + a real SQLite broker across a real thread boundary; operator claims, releases without fixing anything, on a surface reporting an off-scope location | `FAILURE`, kind `session_lost` -- **scripted surface**, see `NOTE.md` |
 
 `demo-handoff-1789447614` is the one worth reading for the handoff mechanism; the two
 `cu_northgate` runs are the one worth reading for Section 4's multi-tenant claim, since they are
 the same base capability resolved once and replayed against a surface it was never recorded on;
-`replay-20260915230202` is the one worth reading for the `human_action.json` evidence above.
+`replay-20260915230202` is the one worth reading for the `human_action.json` evidence above. The
+last four rows exist for a narrower reason: `not_approved`, `recovery_refused` and `session_lost`
+were all real, already-implemented, already-unit-tested mechanisms with no evidence proving they
+actually fire outside a test file -- a gap found by re-reading the brief's own evidence
+requirement, not a bug in the mechanisms themselves. Two of the four necessarily use a scripted
+surface rather than the real mock app, and say so plainly in their own `NOTE.md`.
 
 This is the second generation of this evidence. A review of the first caught two real bugs, not
 just wording problems: the compiler could anchor a locator on a dynamic table cell (a results

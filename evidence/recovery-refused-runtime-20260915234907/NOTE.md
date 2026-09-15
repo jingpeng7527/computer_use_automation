@@ -1,0 +1,7 @@
+No browser -- a scripted SurfaceAdapter, same technique as tests/test_retry_step_guard.py::test_replay_refuses_retry_step_at_runtime_when_after_step_is_none.
+
+Why scripted, not the real mock app: this evidence exists to prove the RUNTIME BACKSTOP fires (a runtime_match with after_step=None, so the schema-level static guard can't catch it at save time). Producing this condition against the real target app would require a genuinely non-idempotent REVERSIBLE_WRITE step that can enter a stuck, dialog-blocked state -- the mock app has no such fixture (see REPORT.md sec 3/7). The code path exercised here is 100% real -- the actual replay() engine, the actual Capability/RuntimeMatch schema, the actual recovery_refused check -- only the surface it observes is a fixed script instead of a live page.
+
+click_count after the run: 1 (must be exactly 1 -- the guard refuses BEFORE a second click, not after one has already landed a second time).
+
+result.json's screenshot_ref names a path that has no file behind it here -- this scripted adapter's screenshot() is a no-op, unlike the real WebAdapter. The field itself is real (the engine does call adapter.screenshot() on this failure, same as any other); only this run's surface never produces bytes for it to write.

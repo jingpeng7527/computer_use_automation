@@ -1,0 +1,14 @@
+{
+  "intervention_id": "session-lost-20260915234907-intervention",
+  "run_id": "session-lost-20260915234907",
+  "capability_id": "test.session_lost_evidence",
+  "goal": "test",
+  "step_id": "s0",
+  "reason": "app_error",
+  "expected": "action to succeed",
+  "observed": "simulated app crash",
+  "screenshot_ref": "evidence/session-lost-20260915234907/s0-failure.png",
+  "completed_steps": [],
+  "session_handle": "session-lost-20260915234907",
+  "raised_at": 1789516147.350795
+}

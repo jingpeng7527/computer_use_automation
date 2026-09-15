@@ -1,0 +1,121 @@
+{
+  "capability_id": "test.retry_guard_evidence",
+  "status": "approved",
+  "title": "Retry guard evidence",
+  "summary": "Minimal capability existing only to generate real recovery_refused evidence.",
+  "app_profile": {
+    "product": "test",
+    "version": "0",
+    "base_url": null,
+    "allowed_route_patterns": []
+  },
+  "outputs": [
+    {
+      "name": "x",
+      "type": "string",
+      "description": "test output",
+      "source_step_id": "s1",
+      "sensitivity": "none"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s0",
+      "intent": "click save -- not idempotent regardless of its risk_level label",
+      "action": {
+        "type": "click"
+      },
+      "risk_level": "REVERSIBLE_WRITE",
+      "target": {
+        "strategies": [
+          {
+            "rationale": null,
+            "layer": 1,
+            "type": "role_name",
+            "role": "button",
+            "name": "Save Changes"
+          }
+        ]
+      },
+      "wait": null,
+      "checkpoint": {
+        "description": "a 'Saved' heading appears",
+        "all_of": [
+          {
+            "kind": "role_name",
+            "role": "heading",
+            "name": "Saved",
+            "visible": true
+          }
+        ],
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "s1",
+      "intent": "read something",
+      "action": {
+        "type": "read",
+        "into": "x",
+        "attribute": null
+      },
+      "risk_level": "SAFE_READ",
+      "target": {
+        "strategies": [
+          {
+            "rationale": null,
+            "layer": 1,
+            "type": "role_name",
+            "role": "textbox",
+            "name": "Balance"
+          }
+        ]
+      },
+      "wait": null,
+      "checkpoint": null
+    }
+  ],
+  "runtime_matches": [
+    {
+      "id": "slow_load",
+      "category": "recoverable",
+      "terminal": false,
+      "detect": {
+        "kind": "role_name",
+        "role": "dialog",
+        "name": "Loading",
+        "visible": true
+      },
+      "after_step": "s0",
+      "result_code": null,
+      "result_outputs": [],
+      "recovery": {
+        "do": "retry_step",
+        "target_role": null,
+        "target_name": null
+      },
+      "max_retries": 2
+    }
+  ],
+  "possible_outcomes": [],
+  "success_condition": {
+    "description": "unreachable in this test",
+    "all_of": [
+      {
+        "kind": "role_name",
+        "role": "heading",
+        "name": "Done",
+        "visible": true
+      }
+    ],
+    "timeout_ms": 10000
+  },
+  "provenance": {
+    "discovered_at": "2026-09-15T23:49:07.343195Z",
+    "model": "test",
+    "goal": "test",
+    "discovery_run_id": "test",
+    "transcript_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "human_edited": false
+  }
+}

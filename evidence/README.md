@@ -1,9 +1,15 @@
 # Evidence index
 
-Every run below is real: a live LLM call for discovery, a real headed Playwright
-browser, a real local FastAPI target app, a real SQLite control-transfer broker for
-the handoff run. Nothing here is hand-written or simulated. Reproduce any row with
-the target app running (`cua serve-target`) and the command shown.
+Every run below is a real execution of the real code -- a live LLM call for discovery, the actual
+`replay()` engine, the actual `Capability`/`RuntimeMatch` schema, a real SQLite control-transfer
+broker for every handoff run. Nothing here is hand-written output. Most rows also drive a real
+headed Playwright browser against the real local FastAPI target app; reproduce those with the
+target app running (`cua serve-target`) and the command shown. Three rows (marked below) instead
+use a scripted `SurfaceAdapter` -- same technique this project's own unit tests use -- because the
+mock target app has no fixture that can trigger that specific condition live (documented in each
+row and in that run's own `NOTE.md`). In every one of those three, only the *surface being
+observed* is scripted; the engine, schema, and (for the session-lost row) the broker are the real
+code, unmodified.
 
 | Directory | Command | Result |
 | --- | --- | --- |
@@ -15,10 +21,18 @@ the target app running (`cua serve-target`) and the command shown.
 | `replay-20260915224332/` | `cua overlay apply --base artifacts/acme_core.lookup_savings_balance/2.json --overlay overlays/acme_core.lookup_savings_balance/cu_northgate.json`, `cua approve --artifact artifacts/acme_core.lookup_savings_balance.cu_northgate/1.json`, then `cua replay --artifact artifacts/acme_core.lookup_savings_balance.cu_northgate/1.json -p member_id=12345 -p branch=main` | `SUCCESS` against the SECOND tenant (`/tenant-b/...` -- different field labels, a real HTML5-`required` branch selector the base tenant doesn't have, a differently-classed detail control, an abbreviated balance label). Same typed `Money` output shape as the base tenant's run. |
 | `replay-20260915224345/` | same resolved tenant artifact, `-p member_id=99999 -p branch=main` | `BUSINESS_OUTCOME / MEMBER_NOT_FOUND` on the second tenant, with zero outcome-detection override in the overlay -- the base capability's detection text happens to match this tenant's build unchanged. |
 | `replay-20260915230202/` | `cua replay --artifact .../2.json -p member_id=12345 --fault "inject=500"`, then `cua ops claim`, `cua ops release --note "checked the page, fault still present (no real fix applied in this live sanity check)"` -- deliberately WITHOUT fixing anything | `FAILED` on resume (the fault is still there). `human_action.json` shows the point of this run: `resume_decision: "none"` and `human_performed_pending_action: false`, mechanically derived from re-checking the real page, disagreeing with the operator's own good-faith note. |
+| `replay-20260915235033/` | `cua set-scope --artifact .../2.json --base-url ... --allowed-route-pattern "/members/*"` (resets the real, already-approved v2 to `draft` -- see the row's `NOTE.md` for why this is a legitimate, not contrived, way to get there), then `cua replay --artifact .../2.json -p member_id=12345 --no-handoff` | `FAILED`, kind `not_approved`, in 0.37s -- refused before the browser is ever touched. `cua approve` was run immediately after to restore v2; `git diff` on the artifact is empty. |
+| `recovery-refused-schema-20260915234907/` | attempted `Capability.model_validate(...)` on a hand-built artifact declaring `recovery.do="retry_step"` on a Click step | Real `pydantic.ValidationError` (`validation_error.txt`) -- the schema-level half of the retry_step guard (REPORT.md sec 3) refuses to let such an artifact be constructed at all, let alone saved. **Scripted, no browser** -- see the row's `NOTE.md`. |
+| `recovery-refused-runtime-20260915234907/` | real `replay()` call against the same class of artifact, but with the offending `runtime_match`'s `after_step` set to `None` (the one shape the schema check can't catch statically) | `FAILED`, kind `recovery_refused`, `click_count == 1` -- the runtime backstop refuses the retry BEFORE a second click, not after one already landed twice. **Scripted surface** -- see `NOTE.md` for exactly what is and isn't real here. |
+| `session-lost-20260915234907/` | real `replay()` + a real SQLite `ControlBroker` (two independent connections, one per thread, mirroring the two real OS processes `cua replay`/`cua ops` actually are) -- claim, then release with a note but no real fix, on a surface that reports an off-scope location after the "crash" | `FAILED`, kind `session_lost`, `observed: "now at http://evil.example.com/login"`. Also produced real `intervention.json` and `human_action.json` (`resume_decision: "none"`, matching the good-faith-note-vs-derived-fact point of `replay-20260915230202/`). **Scripted surface** -- see `NOTE.md`. |
 
-This is the fourth generation of this evidence set. Three rounds of review found
-real, fixable gaps, each time in a versioned or committed file, and a fourth round added
-the two `cu_northgate` runs once the overlay resolver was actually built (see below):
+This is the fifth generation of this evidence set. Four rounds of review found
+real, fixable gaps, each time in a versioned or committed file; a fourth round added
+the two `cu_northgate` runs once the overlay resolver was actually built, and a fifth
+round (see below) closed a gap found by re-reading the assignment brief itself: three
+real safety/control-flow mechanisms this project implements and unit-tests
+(`not_approved`, `recovery_refused`, `session_lost`) had no evidence proving they fire
+outside a test file.
 
 1. The compiler could anchor a locator on a dynamic table cell -- a results row's
    member name ended up recorded in the artifact -- and discovery's own CLI wrote
@@ -45,7 +59,11 @@ the two `cu_northgate` runs once the overlay resolver was actually built (see be
 Every discovery/replay/handoff file was regenerated after the three fixes above; grep this
 whole tree for the member's name, id, or balance and you will not find any of them outside
 of command-line examples in this file. The two `cu_northgate` runs are new, not
-regenerated -- they didn't exist until `src/cua/overlay/resolver.py` did.
+regenerated -- they didn't exist until `src/cua/overlay/resolver.py` did. The same is true
+of the four newest rows (`replay-20260915235033`, both `recovery-refused-*`, and
+`session-lost-20260915234907`): they didn't exist until this evidence gap was found by
+re-reading the brief, and required no fix to anything -- the mechanisms they demonstrate
+were already correctly implemented and unit-tested; only the live/real-code proof was missing.
 
 ## What each file is
 
@@ -85,6 +103,13 @@ regenerated -- they didn't exist until `src/cua/overlay/resolver.py` did.
   step's own checkpoint, never from the note or from anything self-reported --
   `replay-20260915230202/` exists specifically to show the derived fact disagreeing
   with a well-intentioned note.
+- `validation_error.txt` / `attempted_artifact.json` (`recovery-refused-schema-*` only) --
+  the literal `str(pydantic.ValidationError)` raised when trying to construct the
+  artifact next to it, and the artifact itself, so a reader can see exactly which
+  step/field triggered the refusal without re-running anything.
+- `NOTE.md` (three rows only) -- what's real and what's scripted in that specific run,
+  and why the mock target app can't produce that condition live. Present precisely
+  because a claim of "real" needs a place to be honest about the one part that isn't.
 
 ## How to check `--fault` isn't just short-circuiting the engine
 

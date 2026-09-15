@@ -1,0 +1,23 @@
+{
+  "capability_id": "test.session_lost_evidence",
+  "capability_version": 1,
+  "run_id": "session-lost-20260915234907",
+  "status": "failed",
+  "outputs": null,
+  "outcome": null,
+  "failure": {
+    "step_id": "s0",
+    "step_intent": "click something harmless",
+    "kind": "session_lost",
+    "expected": "the resumed session to still be within the allowlisted app scope",
+    "observed": "now at http://evil.example.com/login",
+    "screenshot_ref": null,
+    "retryable": false
+  },
+  "escalation": null,
+  "steps": [],
+  "started_at": "2026-09-15T23:49:07.350669Z",
+  "ended_at": "2026-09-15T23:49:07.407219Z",
+  "evidence_dir": "evidence/session-lost-20260915234907",
+  "redactions": []
+}

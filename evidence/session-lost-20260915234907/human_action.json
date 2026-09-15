@@ -1,0 +1,19 @@
+{
+  "run_id": "session-lost-20260915234907",
+  "step_id": "s0",
+  "claimed_by": "operator",
+  "claimed_at": 1789516147.4024231,
+  "released_at": 1789516147.403528,
+  "operator_note": "released without actually fixing anything -- simulating a login redirect during the handoff",
+  "before": {
+    "url": "http://evil.example.com/login",
+    "screenshot_ref": "evidence/session-lost-20260915234907/s0-failure.png"
+  },
+  "after": {
+    "url": "http://evil.example.com/login",
+    "screenshot_ref": "evidence/session-lost-20260915234907/s0-after-handoff.png"
+  },
+  "resume_decision": "none",
+  "human_performed_pending_action": false,
+  "recorded_at": 1789516147.406425
+}

@@ -1,0 +1,23 @@
+{
+  "capability_id": "test.retry_guard_evidence",
+  "capability_version": 1,
+  "run_id": "recovery-refused-runtime-20260915234907",
+  "status": "failed",
+  "outputs": null,
+  "outcome": null,
+  "failure": {
+    "step_id": "s0",
+    "step_intent": "click save -- not idempotent regardless of its risk_level label",
+    "kind": "recovery_refused",
+    "expected": "a retry-eligible action (read / wait / navigate)",
+    "observed": "'click' step 's0' declared do='retry_step'",
+    "screenshot_ref": "evidence/recovery-refused-runtime-20260915234907/s0-failure.png",
+    "retryable": false
+  },
+  "escalation": null,
+  "steps": [],
+  "started_at": "2026-09-15T23:49:07.343631Z",
+  "ended_at": "2026-09-15T23:49:07.343933Z",
+  "evidence_dir": "evidence/recovery-refused-runtime-20260915234907",
+  "redactions": []
+}
