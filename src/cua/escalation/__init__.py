@@ -6,6 +6,7 @@ resume. The operator console is mockable; this mechanism is not.
 from __future__ import annotations
 
 from .broker import ControlBroker, ControlRow
+from .human_action import record_human_action
 from .intervention import raise_intervention
 from .keepalive import KeepAliveThread
 from .resume import ResumePoint, find_resume_point
@@ -17,4 +18,5 @@ __all__ = [
     "ResumePoint",
     "find_resume_point",
     "raise_intervention",
+    "record_human_action",
 ]

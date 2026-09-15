@@ -1,0 +1,19 @@
+{
+  "run_id": "replay-20260915230202",
+  "step_id": "s0",
+  "claimed_by": "operator",
+  "claimed_at": 1789513333.278267,
+  "released_at": 1789513374.326894,
+  "operator_note": "checked the page, fault still present (no real fix applied in this live sanity check)",
+  "before": {
+    "url": "http://127.0.0.1:8800/members/search?inject=500",
+    "screenshot_ref": "evidence/replay-20260915230202/s0-failure.png"
+  },
+  "after": {
+    "url": "http://127.0.0.1:8800/members/search?inject=500",
+    "screenshot_ref": "evidence/replay-20260915230202/s0-after-handoff.png"
+  },
+  "resume_decision": "none",
+  "human_performed_pending_action": false,
+  "recorded_at": 1789513375.0516338
+}

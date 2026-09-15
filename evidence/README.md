@@ -14,6 +14,7 @@ the target app running (`cua serve-target`) and the command shown.
 | `demo-handoff-1789447614/` | same fault, with handoff enabled: `cua replay ... --fault "inject=500"`, then `cua ops claim <run_id>` / fix by hand / `cua ops release <run_id>` | `result_before_escalation.json`: `FAILED`, `intervention.json` raised (screenshot + reason + empty completed-step list, since it failed on step `s0`). Operator reloads the URL without `?inject=500` in the same browser window, releases control. `result_after_resume.json`: `SUCCESS` -- the resumed run re-checked its checkpoint and continued through to the same typed balance output. |
 | `replay-20260915224332/` | `cua overlay apply --base artifacts/acme_core.lookup_savings_balance/2.json --overlay overlays/acme_core.lookup_savings_balance/cu_northgate.json`, `cua approve --artifact artifacts/acme_core.lookup_savings_balance.cu_northgate/1.json`, then `cua replay --artifact artifacts/acme_core.lookup_savings_balance.cu_northgate/1.json -p member_id=12345 -p branch=main` | `SUCCESS` against the SECOND tenant (`/tenant-b/...` -- different field labels, a real HTML5-`required` branch selector the base tenant doesn't have, a differently-classed detail control, an abbreviated balance label). Same typed `Money` output shape as the base tenant's run. |
 | `replay-20260915224345/` | same resolved tenant artifact, `-p member_id=99999 -p branch=main` | `BUSINESS_OUTCOME / MEMBER_NOT_FOUND` on the second tenant, with zero outcome-detection override in the overlay -- the base capability's detection text happens to match this tenant's build unchanged. |
+| `replay-20260915230202/` | `cua replay --artifact .../2.json -p member_id=12345 --fault "inject=500"`, then `cua ops claim`, `cua ops release --note "checked the page, fault still present (no real fix applied in this live sanity check)"` -- deliberately WITHOUT fixing anything | `FAILED` on resume (the fault is still there). `human_action.json` shows the point of this run: `resume_decision: "none"` and `human_performed_pending_action: false`, mechanically derived from re-checking the real page, disagreeing with the operator's own good-faith note. |
 
 This is the fourth generation of this evidence set. Three rounds of review found
 real, fixable gaps, each time in a versioned or committed file, and a fourth round added
@@ -76,6 +77,14 @@ regenerated -- they didn't exist until `src/cua/overlay/resolver.py` did.
   capability, step, reason, expected vs. observed, screenshot ref, completed steps,
   session handle. Redacted the same way logs are (nothing sensitive appears here
   because this capability's only input is a non-sensitive member id).
+- `human_action.json` (handoff only) -- what the operator actually did: who claimed
+  it and when, before/after URL and screenshot, their own free-text note, and two
+  fields that are deliberately not the same thing -- `resume_decision` (the literal
+  value `find_resume_point` returned) and the derived `human_performed_pending_action`
+  boolean. Both come from mechanically re-checking the live page against the stuck
+  step's own checkpoint, never from the note or from anything self-reported --
+  `replay-20260915230202/` exists specifically to show the derived fact disagreeing
+  with a well-intentioned note.
 
 ## How to check `--fault` isn't just short-circuiting the engine
 

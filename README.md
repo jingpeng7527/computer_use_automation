@@ -119,8 +119,14 @@ Run these in order, each in its own terminal where noted.
 # in a second terminal, once it's stuck:
 .venv/bin/cua ops claim <run_id>
 #   -> fix it by hand in the already-open browser window (e.g. reload without ?inject=500)
-.venv/bin/cua ops release <run_id>
+.venv/bin/cua ops release <run_id> --note "reloaded without ?inject=500"
 # the waiting replay process notices, re-checks its checkpoint, and resumes to SUCCESS
+# -> evidence/<run_id>/human_action.json records what actually happened: before/after
+#    URL + screenshot, your note, and a MECHANICALLY DERIVED resume_decision /
+#    human_performed_pending_action -- from re-checking the real page, not from the
+#    note (REPORT.md sec 5). See evidence/replay-20260915230202/ for a run where a
+#    release note claimed a fix that hadn't actually happened, and the derived field
+#    said so.
 ```
 
 `--fault` is a dev/demo hook only: it appends a query string to the first navigate

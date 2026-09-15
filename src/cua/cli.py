@@ -71,12 +71,18 @@ def ops_claim(
 
 
 @ops_app.command("release")
-def ops_release(run_id: str, holder: str = typer.Option("operator")) -> None:
+def ops_release(
+    run_id: str,
+    holder: str = typer.Option("operator"),
+    note: str = typer.Option(
+        None, help="What you actually did, for the human_action.json evidence record (optional but recommended)."
+    ),
+) -> None:
     """Hand control back. The waiting `cua replay` process notices and resumes."""
     from cua.escalation import ControlBroker
 
     broker = ControlBroker()
-    if broker.release(run_id, holder=holder):
+    if broker.release(run_id, holder=holder, note=note):
         typer.secho(f"released {run_id!r}; the automation will resume.", fg=typer.colors.GREEN)
     else:
         typer.secho(f"could not release {run_id!r} as {holder!r} -- not your claim?", fg=typer.colors.RED)

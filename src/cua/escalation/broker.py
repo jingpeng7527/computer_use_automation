@@ -32,7 +32,9 @@ CREATE TABLE IF NOT EXISTS control (
     holder TEXT,
     lease_expires_at REAL,
     reason TEXT,
-    updated_at REAL NOT NULL
+    updated_at REAL NOT NULL,
+    claimed_at REAL,
+    release_note TEXT
 )
 """
 
@@ -45,6 +47,8 @@ class ControlRow:
     lease_expires_at: float | None
     reason: str | None
     updated_at: float
+    claimed_at: float | None = None
+    release_note: str | None = None
 
 
 class ControlBroker:
@@ -63,11 +67,11 @@ class ControlBroker:
     def mark_stuck(self, run_id: str, reason: str) -> None:
         now = time.time()
         self._conn.execute(
-            "INSERT INTO control(run_id, state, holder, lease_expires_at, reason, updated_at) "
-            "VALUES (?, 'PAUSED', NULL, NULL, ?, ?) "
+            "INSERT INTO control(run_id, state, holder, lease_expires_at, reason, updated_at, "
+            "claimed_at, release_note) VALUES (?, 'PAUSED', NULL, NULL, ?, ?, NULL, NULL) "
             "ON CONFLICT(run_id) DO UPDATE SET "
             "state='PAUSED', holder=NULL, lease_expires_at=NULL, reason=excluded.reason, "
-            "updated_at=excluded.updated_at",
+            "updated_at=excluded.updated_at, claimed_at=NULL, release_note=NULL",
             (run_id, reason, now),
         )
 
@@ -76,9 +80,9 @@ class ControlBroker:
         HUMAN with an already-expired lease. Returns whether THIS call won."""
         now = time.time()
         cur = self._conn.execute(
-            "UPDATE control SET state='HUMAN', holder=?, lease_expires_at=?, updated_at=? "
+            "UPDATE control SET state='HUMAN', holder=?, lease_expires_at=?, updated_at=?, claimed_at=? "
             "WHERE run_id=? AND (state='PAUSED' OR (state='HUMAN' AND lease_expires_at < ?))",
-            (holder, now + lease_seconds, now, run_id, now),
+            (holder, now + lease_seconds, now, now, run_id, now),
         )
         return cur.rowcount > 0
 
@@ -91,12 +95,12 @@ class ControlBroker:
         )
         return cur.rowcount > 0
 
-    def release(self, run_id: str, holder: str) -> bool:
+    def release(self, run_id: str, holder: str, note: str | None = None) -> bool:
         now = time.time()
         cur = self._conn.execute(
-            "UPDATE control SET state='RESUMING', updated_at=? "
+            "UPDATE control SET state='RESUMING', updated_at=?, release_note=? "
             "WHERE run_id=? AND state='HUMAN' AND holder=?",
-            (now, run_id, holder),
+            (now, note, run_id, holder),
         )
         return cur.rowcount > 0
 
@@ -108,8 +112,8 @@ class ControlBroker:
 
     def get_state(self, run_id: str) -> ControlRow | None:
         row = self._conn.execute(
-            "SELECT run_id, state, holder, lease_expires_at, reason, updated_at "
-            "FROM control WHERE run_id=?",
+            "SELECT run_id, state, holder, lease_expires_at, reason, updated_at, "
+            "claimed_at, release_note FROM control WHERE run_id=?",
             (run_id,),
         ).fetchone()
         if row is None:

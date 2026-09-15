@@ -28,7 +28,13 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from cua.escalation import ControlBroker, KeepAliveThread, find_resume_point, raise_intervention
+from cua.escalation import (
+    ControlBroker,
+    KeepAliveThread,
+    find_resume_point,
+    raise_intervention,
+    record_human_action,
+)
 from cua.safety import (
     BoundExceeded,
     ExecutionGuard,
@@ -680,6 +686,9 @@ def _escalate_and_wait(
         assert stop_result.escalation is not None
         reason, expected, observed = stop_result.escalation.reason, "human authorisation required", ""
 
+    before_location = state.adapter.location()
+    before_url = f"{before_location.origin}{before_location.path}"
+
     raise_intervention(
         broker=broker,
         run_id=state.run_id,
@@ -714,7 +723,25 @@ def _escalate_and_wait(
         while waited < max_wait_s:
             row = broker.get_state(state.run_id)
             if row is not None and row.state == "RESUMING":
+                after_screenshot_ref = None
+                if state.evidence_dir:
+                    after_screenshot_ref = f"{state.evidence_dir}/{step.id}-after-handoff.png"
+                    state.adapter.screenshot(after_screenshot_ref)
                 resume_point = find_resume_point(state.capability, step, state.adapter)
+                after_location = state.adapter.location()
+                if state.evidence_dir:
+                    record_human_action(
+                        evidence_dir=state.evidence_dir,
+                        run_id=state.run_id,
+                        step_id=step.id,
+                        control=row,
+                        resume_decision=resume_point,
+                        before_url=before_url,
+                        before_screenshot_ref=screenshot_ref,
+                        after_url=f"{after_location.origin}{after_location.path}",
+                        after_screenshot_ref=after_screenshot_ref,
+                        policy=state.policy,
+                    )
                 broker.mark_resumed(state.run_id)
                 if resume_point == "success":
                     # 系统设计 sec 5.5: the operator finished the work by hand

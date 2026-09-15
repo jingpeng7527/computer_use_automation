@@ -661,6 +661,26 @@ The brief permits mocking the operator UI provided the handoff mechanism and con
 model are real, and those are the parts implemented: state machine, conditional claim, lease
 expiry, pre-action re-check, checkpoint-based resume.
 
+**What the operator actually did.** Every handoff writes `human_action.json` alongside
+`intervention.json`: who claimed it and when, the before/after URL and screenshot, the operator's
+own free-text note (`cua ops release --note "..."`), and two further fields that are deliberately
+*not* the same thing -- `resume_decision` (`"success"` / `"step"` / `"none"`, the literal value
+`find_resume_point` returned) and `human_performed_pending_action` (`resume_decision in ("success",
+"step")`). Both are derived mechanically by re-checking the actual page against the stuck step's
+own checkpoint, exactly as resume already does -- never from the operator's self-report, and never
+from an artifact-declared field, for the same reason risk is never trusted from `Step.risk_level`
+(Section 6): whether the fix worked is a fact about the live session, not something anyone gets to
+assert. The operator's note is kept, but kept separately, labelled as an account rather than a
+fact. `evidence/replay-20260915230202/human_action.json` is a real run of this against the live
+app and a real SQLite broker, deliberately releasing control *without* actually fixing the fault
+(`--note "checked the page, fault still present..."`) specifically to show the derived field
+disagreeing with a well-intentioned note: `resume_decision: "none"`, `human_performed_pending_action:
+false`, even though a note was left. `tests/test_human_action_evidence.py` covers the true branch
+against a scripted surface, since forcing a *successful* fix through this same headed-browser
+session from a test process would require driving the one live page from two threads at once,
+which Playwright's sync API does not allow -- the same reason a real operator uses the visible
+window rather than a script in the first place.
+
 Also honest about a limit: human actions are recorded as a time window with before/after
 screenshots, URL deltas and an operator note, not as a semantic event stream. Capturing raw input
 events is feasible, but mapping them reliably back to semantic controls is not a solved problem
@@ -843,7 +863,7 @@ tenants and alerting on it -- which stays in the list below.
 
 **The one thing that is not a cut.** The discovery run is real: a live LLM-driven run against the
 mock portal, with the transcript, the emitted artifact and the resulting replay in `/evidence/`.
-The brief is unambiguous that this cannot be described in place of being done. Seven runs are
+The brief is unambiguous that this cannot be described in place of being done. Eight runs are
 committed, indexed in `evidence/README.md`, and every path quoted in this document resolves to a
 file in that tree:
 
@@ -856,10 +876,12 @@ file in that tree:
 | `demo-handoff-1789447614` | the same injected-500 fault, escalated instead of just failed | `FAILURE` -> operator claims, fixes, releases -> `SUCCESS` on resume |
 | `replay-20260915224332` | the `cu_northgate` overlay resolved from v2 and approved, replayed against the SECOND tenant's mock app, a valid member id | `SUCCESS`, same typed `Money` output, on a genuinely different surface |
 | `replay-20260915224345` | same resolved tenant artifact, an id with no record | `BUSINESS_OUTCOME / MEMBER_NOT_FOUND`, with no outcome-detection override needed |
+| `replay-20260915230202` | same injected-500 fault, escalated; operator claims and releases WITHOUT fixing anything (`--note "checked the page, fault still present..."`) | `FAILURE` on resume, `human_action.json` records `resume_decision: "none"`, `human_performed_pending_action: false` -- the derived fact disagreeing with a good-faith note is the point of this run |
 
 `demo-handoff-1789447614` is the one worth reading for the handoff mechanism; the two
 `cu_northgate` runs are the one worth reading for Section 4's multi-tenant claim, since they are
-the same base capability resolved once and replayed against a surface it was never recorded on.
+the same base capability resolved once and replayed against a surface it was never recorded on;
+`replay-20260915230202` is the one worth reading for the `human_action.json` evidence above.
 
 This is the second generation of this evidence. A review of the first caught two real bugs, not
 just wording problems: the compiler could anchor a locator on a dynamic table cell (a results
