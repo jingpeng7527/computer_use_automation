@@ -142,9 +142,11 @@ Six parts:
 
 **Identity and scope.** `schema_version`, `capability_id`, `version`, `status`
 (`draft | approved`), and an `app_profile` naming the vendor product and version this was
-recorded against. Recording provenance is kept because a capability is only meaningful relative
-to the surface it was learned on. Three version numbers appear in the file and they are not
-interchangeable: `schema_version` versions this format, `version` versions the capability itself
+recorded against. `status` is not decorative: replay refuses anything not `approved` before it
+touches a browser (Section 6), and `cua approve` is the one-line promotion a review gates. Recording
+provenance is kept because a capability is only meaningful relative to the surface it was learned
+on. Three version numbers appear in the file and they are not interchangeable: `schema_version`
+versions this format, `version` versions the capability itself
 (the flow changed), and `app_profile.version` records the vendor product build the flow was
 learned against. Only the last one is a fact about the world; the first two are ours.
 
@@ -327,7 +329,7 @@ with non-incidents and bury the real ones. Concretely, three result shapes:
   "failure": { "step_id": "s0", "kind": "checkpoint_failed",
     "expected": "reached a page headed 'Member Servicing Console'",
     "observed": "at http://127.0.0.1:8800/members/search?inject=500",
-    "screenshot_ref": "evidence/replay-20260915043438/s0-failure.png" } }
+    "screenshot_ref": "evidence/replay-20260915044645/s0-failure.png" } }
 ```
 
 (field names and casing above are the actual `ReplayResult`/`FailureDetail`/`BusinessOutcomeResult`
@@ -635,6 +637,14 @@ unauthorised irreversible action in a core banking system is not recoverable by 
 is assigned by the executor from the action type and target, not accepted from the artifact,
 because otherwise a mislabelled step could downgrade its own risk.
 
+**Approval gate.** `Capability.status` is `draft` or `approved`; replay refuses anything not
+`approved` before it ever touches the surface (`FailureDetail.kind == "not_approved"`), the same
+default-deny posture as the allowlist above. A fresh discovery run always emits `draft` --
+`cua approve <artifact>` is the one-line promotion, a CLI-only stand-in for what a real deployment
+would gate on a signed review. This also means an artifact hardening produces is `draft` again even
+when its base was `approved`: a new `runtime_match` is new, unreviewed behaviour, and letting it
+inherit approval from an unrelated review would make the gate provable but not actually load-bearing.
+
 **Execution bounds.** A loop that never terminates is a guardrail failure, not merely a cost
 problem: an unbounded agent loop is repeatedly clicking a real back-office application. Every
 loop is bounded by the executor, not by the artifact or the model, with a maximum step count, a
@@ -716,16 +726,24 @@ Everything below is a deliberate omission with the seam left in place, not an un
   feeds it, layer-hit telemetry, is in place.
 - *Semantic capture of human actions during takeover.* Discussed in Section 5.
 
+**Built since the first draft of this list.** *Approval gate.* `Capability.status` was already
+`draft | approved`, but replay never checked it -- a draft, unreviewed artifact could run
+unattended exactly like an approved one. `replay()` now refuses anything not `approved`
+(`FailureDetail.kind == "not_approved"`), and `cua approve <artifact>` is the promotion step, a
+CLI-only stand-in for what a real deployment would gate on a signed review. Hardening resets its
+output back to `draft` even when the base was approved, since a new `runtime_match` is new,
+unreviewed behaviour, not a metadata change -- inheriting approval across that would defeat the
+gate's own purpose. `evidence/replay-20260915044628/` was run against a freshly approved artifact,
+not a hand-edited one.
+
 **What I would build next, in order**
 
-1. *Approval gate.* Artifacts are already `draft | approved`; make unattended replay refuse
-   anything not approved, and require a signed review to promote. This is the smallest change
-   with the largest safety return.
-2. *Overlay resolver plus a drift report.* The point where this stops being a demo and starts
+1. *Overlay resolver plus a drift report.* The point where this stops being a demo and starts
    being operable across institutions.
-3. *Desktop adapter against one real legacy application.* The seam is designed for it, but an
+2. *Desktop adapter against one real legacy application.* The seam is designed for it, but an
    argument is not a test, and this is where the design would actually be falsified.
-4. *Bounded assisted recovery,* with the budget and policy checks it requires.
+3. *Bounded assisted recovery,* with the budget and policy checks it requires.
+4. *A signed review behind the approval gate above,* rather than a CLI command anyone can run.
 
 **The one thing that is not a cut.** The discovery run is real: a live LLM-driven run against the
 mock portal, with the transcript, the emitted artifact and the resulting replay in `/evidence/`.
@@ -735,13 +753,13 @@ file in that tree:
 
 | Run | Scenario | Result |
 |---|---|---|
-| `discovery-20260915043330` | live discovery against the portal, member `12345` (Gemini's daily free-tier quota was exhausted at run time, so `FallbackProvider` fell through to Groq mid-run -- honestly recorded in `run_meta.json`, not silently credited to the configured primary) | emits `acme_core.lookup_savings_balance` v1 |
-| `replay-20260915043402` | same capability, a valid member id | `SUCCESS`, typed `Money` output |
-| `replay-20260915043436` | same capability (hardened to v2), an id with no record | `BUSINESS_OUTCOME / MEMBER_NOT_FOUND` |
-| `replay-20260915043438` | injected 500 on the entry page | `FAILURE`, with a captured screenshot |
-| `demo-handoff-1789446887` | the same injected-500 fault, escalated instead of just failed | `FAILURE` -> operator claims, fixes, releases -> `SUCCESS` on resume |
+| `discovery-20260915043330` | live discovery against the portal, member `12345` (Gemini's daily free-tier quota was exhausted at run time, so `FallbackProvider` fell through to Groq mid-run -- honestly recorded in `run_meta.json`, not silently credited to the configured primary) | emits `acme_core.lookup_savings_balance` v1, status `draft` |
+| `replay-20260915044628` | v1 after `cua approve`, a valid member id | `SUCCESS`, typed `Money` output |
+| `replay-20260915044639` | v2 (hardened, then approved), an id with no record | `BUSINESS_OUTCOME / MEMBER_NOT_FOUND` |
+| `replay-20260915044645` | injected 500 on the entry page | `FAILURE`, with a captured screenshot |
+| `demo-handoff-1789447614` | the same injected-500 fault, escalated instead of just failed | `FAILURE` -> operator claims, fixes, releases -> `SUCCESS` on resume |
 
-`demo-handoff-1789446887` is the one worth reading: it exercises checkpoint failure,
+`demo-handoff-1789447614` is the one worth reading: it exercises checkpoint failure,
 classification, evidence capture, the control-transfer state machine and checkpoint-based resume
 in a single run.
 

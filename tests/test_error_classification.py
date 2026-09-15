@@ -106,6 +106,7 @@ class _FakeAdapter:
 def _one_step_capability(runtime_matches: list[RuntimeMatch]) -> Capability:
     return Capability(
         capability_id="test.terminal_ordering",
+        status="approved",  # these tests exercise ordering/classification, not the approval gate
         title="Terminal ordering test",
         summary="A minimal capability existing only to test replay's step ordering.",
         app_profile=AppProfile(product="test", version="0"),

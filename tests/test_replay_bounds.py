@@ -74,6 +74,7 @@ def _capability(
 ) -> Capability:
     return Capability(
         capability_id="test.bounds",
+        status="approved",  # these tests exercise execution bounds, not the approval gate
         title="Bounds test",
         summary="A minimal capability existing only to test replay's own execution bounds.",
         app_profile=AppProfile(product="test", version="0"),

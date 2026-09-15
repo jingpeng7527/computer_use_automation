@@ -481,13 +481,46 @@ def harden(
         {
             **capability.model_dump(mode="json"),
             "version": capability.version + 1,
+            "status": "draft",  # a new runtime_match is new, unreviewed behaviour --
+            # inheriting "approved" from the base would let it go straight to
+            # unattended replay with no review of what hardening just added,
+            # defeating the point of the approval gate below.
             "runtime_matches": [*capability.runtime_matches, match.model_dump(mode="json")],
             "possible_outcomes": possible_outcomes,
         }
     )
 
     saved_path = ArtifactStore().save(updated)
-    typer.secho(f"updated artifact saved to {saved_path}", fg=typer.colors.GREEN)
+    typer.secho(
+        f"updated artifact saved to {saved_path} (status: draft -- run `cua approve` before replay)",
+        fg=typer.colors.YELLOW,
+    )
+
+
+@app.command()
+def approve(
+    artifact: str = typer.Option(..., help="Path to a saved capability artifact (JSON)."),
+) -> None:
+    """Promote a draft artifact to approved -- the human review step
+    unattended replay now requires (REPORT.md sec 7). A real workflow would
+    gate this on a signed review; this is the CLI-only version the brief's
+    scope calls for. Saves in place at the same version, so the resulting
+    git diff is exactly the one-line status flip a reviewer approved."""
+    from pathlib import Path
+
+    from cua.schema import ArtifactStore, Capability
+
+    capability = Capability.model_validate_json(Path(artifact).read_text())
+    if capability.status == "approved":
+        typer.echo(f"{artifact} is already approved.")
+        return
+    # model_copy() doesn't re-validate; round-trip through model_validate so
+    # an otherwise-invalid artifact can't slip through on the way to approval.
+    approved = Capability.model_validate(
+        {**capability.model_dump(mode="json"), "status": "approved"}
+    )
+    saved_path = ArtifactStore().save(approved)
+    typer.secho(f"approved: {saved_path}", fg=typer.colors.GREEN)
 
 
 @app.command()

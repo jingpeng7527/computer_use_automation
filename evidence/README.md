@@ -7,14 +7,14 @@ the target app running (`cua serve-target`) and the command shown.
 
 | Directory | Command | Result |
 | --- | --- | --- |
-| `discovery-20260915043330/` | `cua discover --goal "look up member 12345 and read their current savings balance" --target http://127.0.0.1:8800/members/search --name lookup_savings_balance` | Live discovery, 6 real steps, 6.5s. Emits `acme_core.lookup_savings_balance` v1. Gemini's free-tier daily quota was exhausted at the time, so `FallbackProvider` fell through to Groq mid-run -- `run_meta.json`'s `model` field (`"openai/gpt-oss-120b -> gemini-3.6-flash"`) and each step's `provider_model` say so honestly, rather than crediting the configured primary for a run it didn't fully do. |
-| `replay-20260915043402/` | `cua replay --artifact artifacts/acme_core.lookup_savings_balance/1.json -p member_id=12345` | `SUCCESS`. `outputs.savings_balance` is a typed `Money` object (`{"amount_minor": 816000, "currency": "USD"}`), not a raw string. |
-| `replay-20260915043436/` | `cua replay --artifact artifacts/acme_core.lookup_savings_balance/2.json -p member_id=99999` | `BUSINESS_OUTCOME`, code `MEMBER_NOT_FOUND`, detected after step `s2`. Not a crash: the artifact declares this outcome and the engine matched it against the observed page. |
-| `replay-20260915043438/` | `cua replay --artifact artifacts/acme_core.lookup_savings_balance/2.json -p member_id=12345 --fault "inject=500" --no-handoff` | `FAILED` at step `s0`, kind `checkpoint_failed`. `s0-failure.png` is a real screenshot of the target app's "System Error 500" page. |
-| `demo-handoff-1789446887/` | same fault, with handoff enabled: `cua replay ... --fault "inject=500"`, then `cua ops claim <run_id>` / fix by hand / `cua ops release <run_id>` | `result_before_escalation.json`: `FAILED`, `intervention.json` raised (screenshot + reason + empty completed-step list, since it failed on step `s0`). Operator reloads the URL without `?inject=500` in the same browser window, releases control. `result_after_resume.json`: `SUCCESS` -- the resumed run re-checked its checkpoint and continued through to the same typed balance output. |
+| `discovery-20260915043330/` | `cua discover --goal "look up member 12345 and read their current savings balance" --target http://127.0.0.1:8800/members/search --name lookup_savings_balance` | Live discovery, 6 real steps, 6.5s. Emits `acme_core.lookup_savings_balance` v1 (status `draft`). Gemini's free-tier daily quota was exhausted at the time, so `FallbackProvider` fell through to Groq mid-run -- `run_meta.json`'s `model` field (`"openai/gpt-oss-120b -> gemini-3.6-flash"`) and each step's `provider_model` say so honestly, rather than crediting the configured primary for a run it didn't fully do. |
+| `replay-20260915044628/` | `cua approve --artifact artifacts/acme_core.lookup_savings_balance/1.json`, then `cua replay --artifact artifacts/acme_core.lookup_savings_balance/1.json -p member_id=12345` | `SUCCESS`. `outputs.savings_balance` is a typed `Money` object (`{"amount_minor": 816000, "currency": "USD"}`), not a raw string. |
+| `replay-20260915044639/` | `cua harden ... --outcome-code MEMBER_NOT_FOUND` (emits v2, status `draft`), `cua approve --artifact .../2.json`, then `cua replay --artifact .../2.json -p member_id=99999` | `BUSINESS_OUTCOME`, code `MEMBER_NOT_FOUND`, detected after step `s2`. Not a crash: the artifact declares this outcome and the engine matched it against the observed page. |
+| `replay-20260915044645/` | `cua replay --artifact artifacts/acme_core.lookup_savings_balance/2.json -p member_id=12345 --fault "inject=500" --no-handoff` | `FAILED` at step `s0`, kind `checkpoint_failed`. `s0-failure.png` is a real screenshot of the target app's "System Error 500" page. |
+| `demo-handoff-1789447614/` | same fault, with handoff enabled: `cua replay ... --fault "inject=500"`, then `cua ops claim <run_id>` / fix by hand / `cua ops release <run_id>` | `result_before_escalation.json`: `FAILED`, `intervention.json` raised (screenshot + reason + empty completed-step list, since it failed on step `s0`). Operator reloads the URL without `?inject=500` in the same browser window, releases control. `result_after_resume.json`: `SUCCESS` -- the resumed run re-checked its checkpoint and continued through to the same typed balance output. |
 
-This is the third generation of this evidence set. Two rounds of review found real
-leaks, not just wording problems, each time in a versioned or committed file:
+This is the fourth generation of this evidence set. Three rounds of review found
+real, fixable gaps, each time in a versioned or committed file:
 
 1. The compiler could anchor a locator on a dynamic table cell -- a results row's
    member name ended up recorded in the artifact -- and discovery's own CLI wrote
@@ -32,8 +32,13 @@ leaks, not just wording problems, each time in a versioned or committed file:
    unconditionally (`mask(value, "unclassified")`), the same way `ctx.*` values are
    already unconditionally masked in replay -- both are values captured live with no
    reviewed `OutputSpec.sensitivity` yet to gate on.
+3. `Capability.status` (`draft` / `approved`) existed but nothing ever checked it --
+   an unreviewed artifact could run unattended exactly like a reviewed one. Fixed by
+   gating `replay()` on `status == "approved"` and adding `cua approve` to promote
+   one. Hardening resets status back to `draft` on the artifact it produces, since a
+   new `runtime_match` is new, unreviewed behaviour even when its base was approved.
 
-Every file below was regenerated after both fixes; grep this whole tree for the
+Every file below was regenerated after all three fixes; grep this whole tree for the
 member's name, id, or balance and you will not find any of them outside of
 command-line examples in this file.
 
@@ -77,7 +82,7 @@ query parameter is interpreted by the mock target app itself
 (`src/cua/target_app/app.py`), which returns a genuine HTTP 500 page when it sees
 `inject=500`. The engine then does exactly what it would do for any unexpected page:
 observes the DOM, checks the step's checkpoint, fails to match it, and classifies the
-divergence. `replay-20260915043438/result.json`'s `failure.observed` field
+divergence. `replay-20260915044645/result.json`'s `failure.observed` field
 (`"at http://127.0.0.1:8800/members/search?inject=500"`) is the engine reporting
 where it actually ended up, not a canned message -- and `s0-failure.png` is a
 screenshot of that real error page, not a placeholder.

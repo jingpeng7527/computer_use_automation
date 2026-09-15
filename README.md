@@ -60,17 +60,25 @@ Run these in order, each in its own terminal where noted.
   --goal "look up member 12345 and read their current savings balance" \
   --target http://127.0.0.1:8800/members/search \
   --name lookup_savings_balance
-# -> artifacts/acme_core.lookup_savings_balance/1.json
+# -> artifacts/acme_core.lookup_savings_balance/1.json (status: "draft")
 # -> evidence/discovery-<timestamp>/{transcript.json, run_meta.json, artifact_emitted.json}
 
-# 3. replay: deterministic re-run of that artifact, no LLM, valid input
+# 3. approve: unattended replay refuses anything not reviewed -- a fresh
+#    discovery emits "draft" on purpose, and this is the one-line promotion
+#    a real review would gate (REPORT.md sec 7). Without this, step 4 below
+#    fails with status: failed, kind: not_approved.
+.venv/bin/cua approve --artifact artifacts/acme_core.lookup_savings_balance/1.json
+
+# 4. replay: deterministic re-run of that artifact, no LLM, valid input
 .venv/bin/cua replay \
   --artifact artifacts/acme_core.lookup_savings_balance/1.json \
   -p member_id=12345
 # -> status: success, typed Money output
 
-# 4. hardening: observe a real failure mode (no LLM) and bake it into the artifact
-#    as a runtime_match, so replay can classify it as a business outcome next time
+# 5. hardening: observe a real failure mode (no LLM) and bake it into the artifact
+#    as a runtime_match, so replay can classify it as a business outcome next time.
+#    A hardened artifact is new, unreviewed behaviour, so it comes back "draft"
+#    even though its base was approved -- approve it again before replaying it.
 .venv/bin/cua harden \
   --artifact artifacts/acme_core.lookup_savings_balance/1.json \
   -p member_id=99999
@@ -80,15 +88,16 @@ Run these in order, each in its own terminal where noted.
   -p member_id=99999 \
   --detect-text "No member records match" \
   --outcome-code MEMBER_NOT_FOUND
-# -> artifacts/acme_core.lookup_savings_balance/2.json
+# -> artifacts/acme_core.lookup_savings_balance/2.json (status: "draft")
+.venv/bin/cua approve --artifact artifacts/acme_core.lookup_savings_balance/2.json
 
-# 5. replay against the hardened artifact with input that hits that outcome
+# 6. replay against the hardened artifact with input that hits that outcome
 .venv/bin/cua replay \
   --artifact artifacts/acme_core.lookup_savings_balance/2.json \
   -p member_id=99999
 # -> status: business_outcome, code MEMBER_NOT_FOUND (not a crash)
 
-# 6. escalation and handoff: force a failure, take control of the same live
+# 7. escalation and handoff: force a failure, take control of the same live
 #    browser session, fix it by hand, hand back, watch replay resume and finish
 .venv/bin/cua replay \
   --artifact artifacts/acme_core.lookup_savings_balance/2.json \

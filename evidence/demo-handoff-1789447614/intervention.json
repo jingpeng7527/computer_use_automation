@@ -1,14 +1,14 @@
 {
-  "intervention_id": "demo-handoff-1789446887-intervention",
-  "run_id": "demo-handoff-1789446887",
+  "intervention_id": "demo-handoff-1789447614-intervention",
+  "run_id": "demo-handoff-1789447614",
   "capability_id": "acme_core.lookup_savings_balance",
   "goal": "look up member {{input.member_id}} and read their current savings balance",
   "step_id": "s0",
   "reason": "checkpoint_failed",
   "expected": "reached a page headed 'Member Servicing Console'",
   "observed": "at http://127.0.0.1:8800/members/search?inject=500",
-  "screenshot_ref": "evidence/demo-handoff-1789446887/s0-failure.png",
+  "screenshot_ref": "evidence/demo-handoff-1789447614/s0-failure.png",
   "completed_steps": [],
-  "session_handle": "demo-handoff-1789446887",
-  "raised_at": 1789446888.806674
+  "session_handle": "demo-handoff-1789447614",
+  "raised_at": 1789447617.504792
 }

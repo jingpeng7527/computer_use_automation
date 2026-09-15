@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "capability_id": "acme_core.lookup_savings_balance",
   "version": 2,
-  "status": "draft",
+  "status": "approved",
   "title": "Lookup Savings Balance",
   "summary": "look up member {{input.member_id}} and read their current savings balance",
   "app_profile": {

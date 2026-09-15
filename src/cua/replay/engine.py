@@ -125,6 +125,27 @@ def replay(
         guard=ExecutionGuard(policy),
     )
 
+    if capability.status != "approved":
+        # REPORT.md sec 7: "the smallest change with the largest safety
+        # return." Unattended replay is the production path -- there is no
+        # human watching to catch a draft artifact's mistakes -- so a
+        # capability that hasn't been reviewed and promoted must never run
+        # here regardless of what params or policy would otherwise allow.
+        # Checked before param validation on purpose: whether THIS run's
+        # inputs are valid is a question that only matters for a capability
+        # eligible to run at all.
+        return _finish(
+            state,
+            "failed",
+            failure=FailureDetail(
+                step_id="",
+                step_intent="approval gate",
+                kind="not_approved",
+                expected="capability.status == 'approved'",
+                observed=capability.status,
+            ),
+        )
+
     param_error = _validate_params(capability, params)
     if param_error is not None:
         return _finish(state, "failed", failure=param_error)

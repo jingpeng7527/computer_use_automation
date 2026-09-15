@@ -104,7 +104,8 @@
             "policy_blocked",
             "recovery_exhausted",
             "param_invalid",
-            "bounds_exceeded"
+            "bounds_exceeded",
+            "not_approved"
           ],
           "title": "Kind",
           "type": "string"
