@@ -30,6 +30,13 @@ target and re-runs the SAME gate() every execution goes through; an
 IRREVERSIBLE step is refused or escalated there on the very first attempt,
 before a checkpoint can even fail, so it never reaches a point where
 retry_step could fire.
+
+A third fix, found auditing this guard rather than by comparison: both
+layers used to check `match.recovery.do == "retry_step"` specifically --
+but dismiss_dialog and reload ALSO fall through to the same _run_step()
+retry at the bottom of _apply_match, carrying the identical double-submit
+risk, and neither layer caught them. Both now check ANY recoverable match
+on a Click/TypeText/Select step, regardless of `do`.
 """
 
 from __future__ import annotations
@@ -66,7 +73,7 @@ def _node(role: str | None = None, name: str | None = None, node_id: str = "n0")
     return InteractiveNode(node_id=node_id, role=role, name=name, bbox=BBox(x=0, y=0, w=1, h=1))
 
 
-def _capability_with_retry_on_a_click_step(*, after_step: str | None) -> dict:
+def _capability_with_retry_on_a_click_step(*, after_step: str | None, do: str = "retry_step") -> dict:
     """A raw dict, not a validated Capability -- the caller decides whether
     to expect model_validate to raise (static case) or to bypass validation
     another way (dynamic-only case)."""
@@ -112,7 +119,7 @@ def _capability_with_retry_on_a_click_step(*, after_step: str | None) -> dict:
                 terminal=False,
                 detect=RoleName(role="dialog", name="Loading"),
                 after_step=after_step,
-                recovery=RecoveryAction(do="retry_step"),
+                recovery=RecoveryAction(do=do),
             ).model_dump(mode="json")
         ],
         "possible_outcomes": [],
@@ -154,6 +161,22 @@ def test_schema_rejects_retry_step_on_a_click_even_when_mislabelled_safe_read() 
         Capability.model_validate(bad)
 
 
+def test_schema_rejects_dismiss_dialog_on_a_click_step_too() -> None:
+    """The gap this guard used to have: dismiss_dialog falls through to the
+    SAME retry _apply_match performs for retry_step, so it must be refused
+    on a Click step exactly as retry_step already is -- not just the one
+    `do` value the guard's original version happened to name."""
+    with pytest.raises(ValidationError, match="dismiss_dialog"):
+        Capability.model_validate(_capability_with_retry_on_a_click_step(after_step="s0", do="dismiss_dialog"))
+
+
+def test_schema_allows_dismiss_dialog_on_a_read_step() -> None:
+    cap = Capability.model_validate(
+        _capability_with_retry_on_a_click_step(after_step="s1", do="dismiss_dialog")
+    )
+    assert cap.runtime_matches[0].after_step == "s1"
+
+
 class _DialogThenGoneAdapter:
     """A dialog blocks step s0's checkpoint permanently in this test --
     nothing here ever dismisses it, since the point is that retry_step
@@ -192,6 +215,24 @@ def test_replay_refuses_retry_step_at_runtime_when_after_step_is_none() -> None:
     statically-named after_step) can't catch this one -- replay itself
     must refuse it instead of silently re-clicking it."""
     capability = Capability.model_validate(_capability_with_retry_on_a_click_step(after_step=None))
+    adapter = _DialogThenGoneAdapter()
+
+    result = replay(capability, {}, adapter, POLICY, run_id="test-run")
+
+    assert result.status == "failed"
+    assert result.failure.kind == "recovery_refused"
+    assert adapter.click_count == 1  # the original click, never a re-click of Save Changes
+
+
+def test_replay_refuses_dismiss_dialog_at_runtime_when_after_step_is_none() -> None:
+    """Same dynamic backstop, same gap: before this fix, this specific
+    scenario -- after_step=None (so the schema can't catch it statically)
+    AND do="dismiss_dialog" (so the old do=="retry_step"-only runtime check
+    didn't catch it either) -- would have clicked "Save Changes" a second
+    time. Now refused at the same point retry_step already was."""
+    capability = Capability.model_validate(
+        _capability_with_retry_on_a_click_step(after_step=None, do="dismiss_dialog")
+    )
     adapter = _DialogThenGoneAdapter()
 
     result = replay(capability, {}, adapter, POLICY, run_id="test-run")

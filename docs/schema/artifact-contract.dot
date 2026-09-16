@@ -12,7 +12,7 @@ digraph schema {
     "Provenance" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>Provenance</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">discovered_at: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">model: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">goal: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">discovery_run_id: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">transcript_sha256: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">human_edited?: boolean</FONT></TD></TR></TABLE>>];
     "RecoveryAction" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>RecoveryAction</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">do: enum</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">target_role?: scalar</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">target_name?: scalar</FONT></TD></TR></TABLE>>];
     "RecoveryBudget" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>RecoveryBudget</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">per_run?: integer</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">max_depth?: integer</FONT></TD></TR></TABLE>>];
-    "RuntimeMatch" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>RuntimeMatch</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">id: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">category: enum</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">terminal: boolean</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">detect: union[5]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">after_step?: scalar</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">result_code?: scalar</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">result_outputs?: list[scalar]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">recovery?: RecoveryAction</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">max_retries?: integer</FONT></TD></TR></TABLE>>];
+    "RuntimeMatch" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>RuntimeMatch</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">id: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">category: enum</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">terminal: boolean</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">detect: union[4]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">after_step?: scalar</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">result_code?: scalar</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">result_outputs?: list[scalar]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">recovery?: RecoveryAction</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">max_retries?: integer</FONT></TD></TR></TABLE>>];
   }
   subgraph cluster_1 {
     label="Target resolution"; color="#b9c6d8"; penwidth=1; style="rounded";
@@ -24,8 +24,7 @@ digraph schema {
   }
   subgraph cluster_2 {
     label="Verification"; color="#b9c6d8"; penwidth=1; style="rounded";
-    "Checkpoint" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>Checkpoint</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">description: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">all_of: list[NamedPredicate, RoleName, TextContains, UrlMatches, ValueEquals]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">timeout_ms?: integer</FONT></TD></TR></TABLE>>];
-    "NamedPredicate" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>NamedPredicate</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">kind?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">name: string</FONT></TD></TR></TABLE>>];
+    "Checkpoint" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>Checkpoint</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">description: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">all_of: list[RoleName, TextContains, UrlMatches, ValueEquals]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">timeout_ms?: integer</FONT></TD></TR></TABLE>>];
     "RoleName" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>RoleName</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">kind?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">role: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">name: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">visible?: boolean</FONT></TD></TR></TABLE>>];
     "TextContains" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>TextContains</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">kind?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">text: TextMatcher</FONT></TD></TR></TABLE>>];
     "TextMatcher" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>TextMatcher</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">mode?: enum</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">value: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">ignore_case?: boolean</FONT></TD></TR></TABLE>>];
@@ -41,7 +40,7 @@ digraph schema {
     "Step" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>Step</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">id: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">intent: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">action: union[6]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">risk_level: enum</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">target?: Target</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">wait?: WaitSpec</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">checkpoint?: Checkpoint</FONT></TD></TR></TABLE>>];
     "TypeText" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>TypeText</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">type?: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">value_from: string</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">submit?: boolean</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">clear_first?: boolean</FONT></TD></TR></TABLE>>];
     "Wait" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>Wait</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">type?: string</FONT></TD></TR></TABLE>>];
-    "WaitSpec" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>WaitSpec</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">until: union[5]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">timeout_ms?: integer</FONT></TD></TR></TABLE>>];
+    "WaitSpec" [label=<<TABLE BGCOLOR="#ffffff" BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e8eef7"><B>WaitSpec</B></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">until: union[4]</FONT></TD></TR><TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">timeout_ms?: integer</FONT></TD></TR></TABLE>>];
   }
   "Capability" -> "AppProfile" [label="app_profile"];
   "Capability" -> "ParamSpec" [label="inputs"];
@@ -51,12 +50,10 @@ digraph schema {
   "Capability" -> "RecoveryBudget" [label="recovery_budget"];
   "Capability" -> "Checkpoint" [label="success_condition"];
   "Capability" -> "Provenance" [label="provenance"];
-  "Checkpoint" -> "NamedPredicate" [label="all_of"];
   "Checkpoint" -> "RoleName" [label="all_of"];
   "Checkpoint" -> "TextContains" [label="all_of"];
   "Checkpoint" -> "UrlMatches" [label="all_of"];
   "Checkpoint" -> "ValueEquals" [label="all_of"];
-  "RuntimeMatch" -> "NamedPredicate" [label="detect"];
   "RuntimeMatch" -> "RoleName" [label="detect"];
   "RuntimeMatch" -> "TextContains" [label="detect"];
   "RuntimeMatch" -> "UrlMatches" [label="detect"];
@@ -76,7 +73,6 @@ digraph schema {
   "Target" -> "LabelAnchorStrategy" [label="strategies"];
   "Target" -> "RoleNameStrategy" [label="strategies"];
   "TextContains" -> "TextMatcher" [label="text"];
-  "WaitSpec" -> "NamedPredicate" [label="until"];
   "WaitSpec" -> "RoleName" [label="until"];
   "WaitSpec" -> "TextContains" [label="until"];
   "WaitSpec" -> "UrlMatches" [label="until"];

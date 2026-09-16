@@ -21,6 +21,7 @@ is derived, naming is not.
 
 from __future__ import annotations
 
+import re
 from typing import Literal
 
 from cua.safety import Policy
@@ -86,6 +87,10 @@ def run_hardening_pass(
     return category, candidate_texts, result
 
 
+def _slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")[:40] or "match"
+
+
 def build_runtime_match(
     *,
     after_step: str,
@@ -98,9 +103,20 @@ def build_runtime_match(
     """Turns a classified divergence into a schema RuntimeMatch. The
     detection condition matches on the same text a human reviewer would
     point at to explain the divergence -- simple and auditable, not a
-    fragile structural fingerprint."""
+    fragile structural fingerprint.
+
+    The id used to be a bare f"{after_step}_{category}" -- collided the
+    first time a single step legitimately diverged into two different
+    business outcomes (e.g. a frozen account and a permission-restricted
+    one both fail step s4's target resolution the same way), which
+    Capability's own duplicate-id guard then refused to save. Disambiguated
+    on outcome_code where there is one (already unique per Capability's own
+    possible_outcomes<->runtime_matches consistency check), else on a slug
+    of the detect text -- never on a counter, which would make the id
+    depend on curation ORDER rather than on what the match actually is."""
+    disambiguator = outcome_code or _slug(detect_text)
     return RuntimeMatch(
-        id=f"{after_step}_{category}",
+        id=f"{after_step}_{category}_{disambiguator}",
         category=category,
         terminal=category != "recoverable",
         detect=TextContains(text=TextMatcher(mode="contains", value=detect_text)),

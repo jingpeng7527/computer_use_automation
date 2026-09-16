@@ -98,7 +98,6 @@
           "items": {
             "discriminator": {
               "mapping": {
-                "named_predicate": "#/$defs/NamedPredicate",
                 "role_name": "#/$defs/RoleName",
                 "text_contains": "#/$defs/TextContains",
                 "url_matches": "#/$defs/UrlMatches",
@@ -118,9 +117,6 @@
               },
               {
                 "$ref": "#/$defs/ValueEquals"
-              },
-              {
-                "$ref": "#/$defs/NamedPredicate"
               }
             ]
           },
@@ -247,26 +243,6 @@
         "relation"
       ],
       "title": "LabelAnchorStrategy",
-      "type": "object"
-    },
-    "NamedPredicate": {
-      "description": "Escape hatch for an engine-known check that doesn't reduce to text or\na role/name, e.g. 'no_error_banner' or 'network_idle'.",
-      "properties": {
-        "kind": {
-          "const": "named_predicate",
-          "default": "named_predicate",
-          "title": "Kind",
-          "type": "string"
-        },
-        "name": {
-          "title": "Name",
-          "type": "string"
-        }
-      },
-      "required": [
-        "name"
-      ],
-      "title": "NamedPredicate",
       "type": "object"
     },
     "Navigate": {
@@ -638,7 +614,6 @@
         "detect": {
           "discriminator": {
             "mapping": {
-              "named_predicate": "#/$defs/NamedPredicate",
               "role_name": "#/$defs/RoleName",
               "text_contains": "#/$defs/TextContains",
               "url_matches": "#/$defs/UrlMatches",
@@ -658,9 +633,6 @@
             },
             {
               "$ref": "#/$defs/ValueEquals"
-            },
-            {
-              "$ref": "#/$defs/NamedPredicate"
             }
           ],
           "title": "Detect"
@@ -1031,7 +1003,6 @@
         "until": {
           "discriminator": {
             "mapping": {
-              "named_predicate": "#/$defs/NamedPredicate",
               "role_name": "#/$defs/RoleName",
               "text_contains": "#/$defs/TextContains",
               "url_matches": "#/$defs/UrlMatches",
@@ -1051,9 +1022,6 @@
             },
             {
               "$ref": "#/$defs/ValueEquals"
-            },
-            {
-              "$ref": "#/$defs/NamedPredicate"
             }
           ],
           "title": "Until"

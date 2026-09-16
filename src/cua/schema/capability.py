@@ -238,11 +238,18 @@ class Capability(BaseModel):
                     f"runtime_match {match.id!r} names unknown "
                     f"after_step={match.after_step!r}"
                 )
-            # "retry_step" re-performs the step's own action -- safe only when
-            # that action can't have already taken effect. A checkpoint
+            # EVERY recovery.do value re-performs the step's own action --
+            # dismiss_dialog and reload do an extra thing FIRST, but
+            # replay/engine.py's _apply_match falls through to the SAME
+            # retry call at the bottom regardless of `do`. Safe only when
+            # that action can't have already taken effect: a checkpoint
             # failing does not prove a click didn't land (a slow POST looks
             # identical), so retrying Click/TypeText/Select risks firing it
-            # twice (e.g. a double-submitted payment).
+            # twice (e.g. a double-submitted payment) no matter which `do`
+            # got it there. This used to check `match.recovery.do ==
+            # "retry_step"` specifically -- a real gap, since a hardened
+            # artifact declaring dismiss_dialog or reload on a Click step
+            # sailed through unchecked while carrying the identical risk.
             #
             # Keyed on the action's own TYPE, not `step.risk_level`: that
             # field is a discovered HINT the artifact author writes down
@@ -262,14 +269,13 @@ class Capability(BaseModel):
             if (
                 match.category == "recoverable"
                 and match.recovery is not None
-                and match.recovery.do == "retry_step"
                 and match.after_step is not None
                 and isinstance(steps_by_id[match.after_step].action, (Click, TypeText, Select))
             ):
                 raise ValueError(
-                    f"runtime_match {match.id!r} declares recovery.do='retry_step' on "
+                    f"runtime_match {match.id!r} declares recovery.do={match.recovery.do!r} on "
                     f"step {match.after_step!r}, whose action is "
-                    f"{steps_by_id[match.after_step].action.type!r} -- retrying "
+                    f"{steps_by_id[match.after_step].action.type!r} -- any recovery on "
                     f"click/type/select risks performing it twice, since a failed "
                     f"checkpoint doesn't prove the action didn't already take effect"
                 )

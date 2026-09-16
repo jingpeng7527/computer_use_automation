@@ -34,7 +34,12 @@ class Money(BaseModel):
 # A value produced by a Read step or returned in a result. Typed, not
 # downgraded to a string: a money output stays a Money object all the way
 # through StepResult/BusinessOutcomeResult/ReplayResult (schema/result.py).
-OutputValue = Money | bool | int | float | str
+# No `float` arm: ParamType has no "float" variant and _typed_value()
+# (replay/engine.py) never produces one -- money is Decimal-backed Money
+# specifically to avoid float's precision loss, so a stray float branch
+# here would have been an unreachable, misleading escape hatch back into
+# the imprecision the Money type exists to rule out.
+OutputValue = Money | bool | int | str
 
 
 _REF_RE = re.compile(r"^\{\{(input|ctx)\.([A-Za-z_][A-Za-z0-9_]*)\}\}$")
@@ -96,18 +101,17 @@ class ValueEquals(BaseModel):
     expected_template: str
 
 
-class NamedPredicate(BaseModel):
-    """Escape hatch for an engine-known check that doesn't reduce to text or
-    a role/name, e.g. 'no_error_banner' or 'network_idle'."""
-
-    kind: Literal["named_predicate"] = "named_predicate"
-    name: str
-
-
 Condition = Annotated[
-    TextContains | RoleName | UrlMatches | ValueEquals | NamedPredicate,
+    TextContains | RoleName | UrlMatches | ValueEquals,
     Field(discriminator="kind"),
 ]
+# A NamedPredicate escape hatch ("no_error_banner", "network_idle", ...) for
+# an engine-known check that doesn't reduce to text or a role/name was here
+# and deliberately removed: evaluate_condition() never implemented it and
+# unconditionally returned False for it, which meant any Condition that
+# used one made its enclosing Checkpoint permanently unsatisfiable --
+# structurally valid, silently unpassable. Add it back to the union only
+# together with a real evaluate_condition() branch, not ahead of one.
 
 
 class Checkpoint(BaseModel):

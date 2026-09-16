@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+<head><title>Session Warning</title></head>
+<body>
+<!-- A real interstitial, opt-in via ?interstitial=1 on /members/search: a
+     legacy session-timeout warning that has to be dismissed before the
+     real page underneath is reachable. Deliberately does NOT include the
+     "Member Servicing Console" heading the search page has -- this state
+     is not a variant of the search page, it's a genuine detour a step's
+     checkpoint should legitimately fail against, exactly the shape
+     agent/hardening.py's classify_divergence() treats as "recoverable". -->
+<div role="dialog" aria-label="Session Warning">
+  <h2>Session Warning</h2>
+  <p>Your session is about to expire. Continue to keep working.</p>
+  <a href="/members/search">Continue</a>
+</div>
+</body>
+</html>

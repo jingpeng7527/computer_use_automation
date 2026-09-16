@@ -23,7 +23,6 @@ from cua.schema import (
     Condition,
     CssStrategy,
     LabelAnchorStrategy,
-    NamedPredicate,
     RoleName,
     RoleNameStrategy,
     Target,
@@ -167,6 +166,4 @@ def evaluate_condition(
         # {{input.x}} / {{ctx.x}} references itself.
         matches = [n for n in snapshot if n.role == condition.role and (n.name or "") == condition.name]
         return len(matches) == 1 and (matches[0].value or "") == condition.expected_template
-    if isinstance(condition, NamedPredicate):
-        return False  # engine-specific predicates (e.g. "network_idle") aren't wired up yet
     return False

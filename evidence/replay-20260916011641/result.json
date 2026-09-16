@@ -1,0 +1,66 @@
+{
+  "capability_id": "acme_core.lookup_savings_balance",
+  "capability_version": 4,
+  "run_id": "replay-20260916011641",
+  "status": "success",
+  "outputs": {
+    "savings_balance": {
+      "amount_minor": 816000,
+      "currency": "USD"
+    }
+  },
+  "outcome": null,
+  "failure": null,
+  "escalation": null,
+  "steps": [
+    {
+      "step_id": "s0",
+      "intent": "navigate to http://127.0.0.1:8800/members/search",
+      "status": "ok",
+      "locator_layer_hit": null,
+      "recoveries_applied": [],
+      "duration_ms": 174,
+      "extracted": {}
+    },
+    {
+      "step_id": "s1",
+      "intent": "type {{input.member_id}}",
+      "status": "ok",
+      "locator_layer_hit": 2,
+      "recoveries_applied": [],
+      "duration_ms": 37,
+      "extracted": {}
+    },
+    {
+      "step_id": "s2",
+      "intent": "click 'Search'",
+      "status": "ok",
+      "locator_layer_hit": 1,
+      "recoveries_applied": [],
+      "duration_ms": 135,
+      "extracted": {}
+    },
+    {
+      "step_id": "s3",
+      "intent": "click 'View'",
+      "status": "ok",
+      "locator_layer_hit": 3,
+      "recoveries_applied": [],
+      "duration_ms": 116,
+      "extracted": {}
+    },
+    {
+      "step_id": "s4",
+      "intent": "read savings_balance",
+      "status": "ok",
+      "locator_layer_hit": 2,
+      "recoveries_applied": [],
+      "duration_ms": 19,
+      "extracted": {}
+    }
+  ],
+  "started_at": "2026-09-16T01:16:43.278473Z",
+  "ended_at": "2026-09-16T01:16:43.766133Z",
+  "evidence_dir": "evidence/replay-20260916011641",
+  "redactions": []
+}

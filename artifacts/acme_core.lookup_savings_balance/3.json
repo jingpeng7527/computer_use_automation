@@ -1,0 +1,239 @@
+{
+  "schema_version": "1.0",
+  "capability_id": "acme_core.lookup_savings_balance",
+  "version": 3,
+  "status": "approved",
+  "title": "Lookup Savings Balance",
+  "summary": "look up member {{input.member_id}} and read their current savings balance",
+  "app_profile": {
+    "product": "acme_core",
+    "version": "2024.1",
+    "base_url": "http://127.0.0.1:8800",
+    "allowed_route_patterns": [
+      "/members/*"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "member_id",
+      "type": "string",
+      "required": true,
+      "description": "captured during discovery as a member_id value",
+      "pattern": "^[0-9]{5}$",
+      "enum_values": null,
+      "sensitivity": "pii"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "savings_balance",
+      "type": "money",
+      "description": "read from the page during discovery (savings_balance)",
+      "source_step_id": "s4",
+      "sensitivity": "none"
+    }
+  ],
+  "possible_outcomes": [
+    "MEMBER_NOT_FOUND",
+    "ACCOUNT_FROZEN"
+  ],
+  "steps": [
+    {
+      "id": "s0",
+      "intent": "navigate to http://127.0.0.1:8800/members/search",
+      "action": {
+        "type": "navigate",
+        "url_template": "http://127.0.0.1:8800/members/search"
+      },
+      "risk_level": "SAFE_READ",
+      "target": null,
+      "wait": null,
+      "checkpoint": {
+        "description": "reached a page headed 'Member Servicing Console'",
+        "all_of": [
+          {
+            "kind": "role_name",
+            "role": "heading",
+            "name": "Member Servicing Console",
+            "visible": true
+          }
+        ],
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "s1",
+      "intent": "type {{input.member_id}}",
+      "action": {
+        "type": "type",
+        "value_from": "{{input.member_id}}",
+        "submit": false,
+        "clear_first": true
+      },
+      "risk_level": "REVERSIBLE_WRITE",
+      "target": {
+        "strategies": [
+          {
+            "rationale": "no accessible name at discovery time; anchored on 'Member Number:'",
+            "layer": 2,
+            "type": "label_anchor",
+            "label": "Member Number:",
+            "relation": "same_row_input",
+            "nth": 0
+          }
+        ]
+      },
+      "wait": null,
+      "checkpoint": null
+    },
+    {
+      "id": "s2",
+      "intent": "click 'Search'",
+      "action": {
+        "type": "click"
+      },
+      "risk_level": "REVERSIBLE_WRITE",
+      "target": {
+        "strategies": [
+          {
+            "rationale": "has a real accessible name",
+            "layer": 1,
+            "type": "role_name",
+            "role": "button",
+            "name": "Search"
+          }
+        ]
+      },
+      "wait": null,
+      "checkpoint": {
+        "description": "reached a page headed 'Search Results'",
+        "all_of": [
+          {
+            "kind": "role_name",
+            "role": "heading",
+            "name": "Search Results",
+            "visible": true
+          }
+        ],
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "s3",
+      "intent": "click 'View'",
+      "action": {
+        "type": "click"
+      },
+      "risk_level": "REVERSIBLE_WRITE",
+      "target": {
+        "strategies": [
+          {
+            "rationale": "stable, human-authored class name observed at discovery time",
+            "layer": 3,
+            "type": "css",
+            "selector": ".action-view-detail"
+          }
+        ]
+      },
+      "wait": null,
+      "checkpoint": {
+        "description": "reached a page headed 'Member Detail'",
+        "all_of": [
+          {
+            "kind": "role_name",
+            "role": "heading",
+            "name": "Member Detail",
+            "visible": true
+          }
+        ],
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "s4",
+      "intent": "read savings_balance",
+      "action": {
+        "type": "read",
+        "into": "savings_balance",
+        "attribute": null
+      },
+      "risk_level": "SAFE_READ",
+      "target": {
+        "strategies": [
+          {
+            "rationale": "no accessible name at discovery time; anchored on 'Savings Balance'",
+            "layer": 2,
+            "type": "label_anchor",
+            "label": "Savings Balance",
+            "relation": "next_cell",
+            "nth": 0
+          }
+        ]
+      },
+      "wait": null,
+      "checkpoint": null
+    }
+  ],
+  "runtime_matches": [
+    {
+      "id": "s2_business_outcome",
+      "category": "business_outcome",
+      "terminal": true,
+      "detect": {
+        "kind": "text_contains",
+        "text": {
+          "mode": "contains",
+          "value": "No member records match",
+          "ignore_case": true
+        }
+      },
+      "after_step": "s2",
+      "result_code": "MEMBER_NOT_FOUND",
+      "result_outputs": [],
+      "recovery": null,
+      "max_retries": 2
+    },
+    {
+      "id": "s4_business_outcome",
+      "category": "business_outcome",
+      "terminal": true,
+      "detect": {
+        "kind": "text_contains",
+        "text": {
+          "mode": "contains",
+          "value": "Account Frozen",
+          "ignore_case": true
+        }
+      },
+      "after_step": "s4",
+      "result_code": "ACCOUNT_FROZEN",
+      "result_outputs": [],
+      "recovery": null,
+      "max_retries": 2
+    }
+  ],
+  "recovery_budget": {
+    "per_run": 5,
+    "max_depth": 1
+  },
+  "success_condition": {
+    "description": "final page headed 'Member Detail'",
+    "all_of": [
+      {
+        "kind": "role_name",
+        "role": "heading",
+        "name": "Member Detail",
+        "visible": true
+      }
+    ],
+    "timeout_ms": 10000
+  },
+  "provenance": {
+    "discovered_at": "2026-09-15T04:33:40.023164Z",
+    "model": "openai/gpt-oss-120b -> gemini-3.6-flash",
+    "goal": "look up member {{input.member_id}} and read their current savings balance",
+    "discovery_run_id": "discovery-20260915043330",
+    "transcript_sha256": "3981837dd9cfd1554c9991fa19b989bc0c5778c6bf4ad86d419e18ed33366e6d",
+    "human_edited": false
+  }
+}

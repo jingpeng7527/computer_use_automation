@@ -180,3 +180,23 @@ def test_injected_server_error_is_classified_as_a_hard_failure(adapter: WebAdapt
         assert result.status == "failed"
         assert category == "hard_failure"
         assert any("System Error" in t for t in candidate_texts)
+
+
+def test_build_runtime_match_disambiguates_two_outcomes_at_the_same_step() -> None:
+    """Regression for a real collision: id used to be a bare
+    f"{after_step}_{category}", so two different business outcomes
+    diverging at the SAME step (e.g. a frozen account and a
+    permission-restricted one both fail step s4's target resolution the
+    same way -- member 99001 vs 99002 against this project's own artifact)
+    got the identical id and Capability's duplicate-id guard refused to
+    save the second one. No browser needed: this is pure id generation."""
+    frozen = build_runtime_match(
+        after_step="s4", category="business_outcome", detect_text="Account Frozen", outcome_code="ACCOUNT_FROZEN"
+    )
+    restricted = build_runtime_match(
+        after_step="s4",
+        category="business_outcome",
+        detect_text="Access Restricted",
+        outcome_code="PERMISSION_DENIED",
+    )
+    assert frozen.id != restricted.id

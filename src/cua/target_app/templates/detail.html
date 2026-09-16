@@ -9,7 +9,13 @@
 <table border="1">
   <tr><td>Member Number</td><td>{{ member_id }}</td></tr>
   <tr><td>Name</td><td>{{ member.name }}</td></tr>
+  {% if member.status == "frozen" %}
+  <tr><td>Status</td><td>Account Frozen -- balance unavailable while frozen</td></tr>
+  {% elif member.status == "restricted" %}
+  <tr><td>Status</td><td>Access Restricted -- this account is above your permission tier</td></tr>
+  {% else %}
   <tr><td>Savings Balance</td><td>${{ "%.2f"|format(member.savings_balance_minor / 100) }} {{ member.currency }}</td></tr>
+  {% endif %}
 </table>
 <form method="post" action="/members/{{ member_id }}/change-limit">
   <button type="button" aria-label="Change Credit Limit">Change Credit Limit</button>

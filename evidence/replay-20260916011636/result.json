@@ -1,0 +1,66 @@
+{
+  "capability_id": "acme_core.lookup_savings_balance",
+  "capability_version": 4,
+  "run_id": "replay-20260916011636",
+  "status": "business_outcome",
+  "outputs": null,
+  "outcome": {
+    "code": "ACCOUNT_FROZEN",
+    "description": "s4_business_outcome",
+    "detected_after_step": "s4",
+    "outputs": {}
+  },
+  "failure": null,
+  "escalation": null,
+  "steps": [
+    {
+      "step_id": "s0",
+      "intent": "navigate to http://127.0.0.1:8800/members/search",
+      "status": "ok",
+      "locator_layer_hit": null,
+      "recoveries_applied": [],
+      "duration_ms": 220,
+      "extracted": {}
+    },
+    {
+      "step_id": "s1",
+      "intent": "type {{input.member_id}}",
+      "status": "ok",
+      "locator_layer_hit": 2,
+      "recoveries_applied": [],
+      "duration_ms": 69,
+      "extracted": {}
+    },
+    {
+      "step_id": "s2",
+      "intent": "click 'Search'",
+      "status": "ok",
+      "locator_layer_hit": 1,
+      "recoveries_applied": [],
+      "duration_ms": 148,
+      "extracted": {}
+    },
+    {
+      "step_id": "s3",
+      "intent": "click 'View'",
+      "status": "ok",
+      "locator_layer_hit": 3,
+      "recoveries_applied": [],
+      "duration_ms": 145,
+      "extracted": {}
+    },
+    {
+      "step_id": "s4",
+      "intent": "read savings_balance",
+      "status": "outcome",
+      "locator_layer_hit": null,
+      "recoveries_applied": [],
+      "duration_ms": 11,
+      "extracted": {}
+    }
+  ],
+  "started_at": "2026-09-16T01:16:38.442839Z",
+  "ended_at": "2026-09-16T01:16:39.038675Z",
+  "evidence_dir": "evidence/replay-20260916011636",
+  "redactions": []
+}

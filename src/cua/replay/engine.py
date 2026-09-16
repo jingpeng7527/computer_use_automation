@@ -227,6 +227,21 @@ def _validate_params(capability: Capability, params: dict[str, str]) -> FailureD
                 expected=f"input {p.name!r} matching {p.pattern!r}",
                 observed="<redacted>" if p.sensitivity != "none" else value,
             )
+        # Declared but never enforced until now: an enum-typed input's
+        # enum_values existed in the schema since Phase A, but only
+        # `pattern` was ever checked here -- a caller could pass anything
+        # for a type="enum" param with no pattern set (the common case,
+        # since enum_values was assumed to BE the validation), and it would
+        # reach the browser instead of being refused up front. Fails the
+        # same way `pattern` does: before replay touches the surface.
+        if p.type == "enum" and p.enum_values and value not in p.enum_values:
+            return FailureDetail(
+                step_id="",
+                step_intent="validate inputs",
+                kind="param_invalid",
+                expected=f"input {p.name!r} to be one of {p.enum_values!r}",
+                observed="<redacted>" if p.sensitivity != "none" else value,
+            )
     return None
 
 
@@ -567,22 +582,28 @@ def _apply_match(
     # Capability._referential_integrity can't check statically since it
     # could land on any step.
     #
-    # IRREVERSIBLE needs no separate check here: "retry_step" falls through
-    # to a recursive _run_step() call below, which re-resolves the target
-    # and re-runs the SAME gate() every other execution goes through --
-    # gate() already ran once on this exact resolution earlier in THIS
-    # _run_step call (control could not have reached this far otherwise),
-    # and runs again, fresh, on the retry. An IRREVERSIBLE step is refused
-    # or escalated there, not retried past it -- adding a second
-    # classify_risk() call here would just re-check state gate() already
-    # checked, using the same (by now stale) resolution.
-    if match.recovery.do == "retry_step" and isinstance(step.action, (Click, TypeText, Select)):
+    # Checked regardless of match.recovery.do: dismiss_dialog and reload do
+    # an extra thing first, but every branch below still falls through to
+    # the SAME _run_step() retry at the bottom -- this used to only check
+    # do == "retry_step", which let dismiss_dialog/reload on a Click step
+    # through unguarded despite carrying the identical double-submit risk.
+    #
+    # IRREVERSIBLE needs no separate check here: every `do` value falls
+    # through to a recursive _run_step() call below, which re-resolves the
+    # target and re-runs the SAME gate() every other execution goes
+    # through -- gate() already ran once on this exact resolution earlier
+    # in THIS _run_step call (control could not have reached this far
+    # otherwise), and runs again, fresh, on the retry. An IRREVERSIBLE step
+    # is refused or escalated there, not retried past it -- adding a
+    # second classify_risk() call here would just re-check state gate()
+    # already checked, using the same (by now stale) resolution.
+    if isinstance(step.action, (Click, TypeText, Select)):
         _stop_failed(
             state,
             step,
             kind="recovery_refused",
             expected="a retry-eligible action (read / wait / navigate)",
-            observed=f"{step.action.type!r} step {step.id!r} declared do='retry_step'",
+            observed=f"{step.action.type!r} step {step.id!r} declared recovery.do={match.recovery.do!r}",
         )
         return
 

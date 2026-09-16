@@ -90,9 +90,14 @@ input, the step at which it diverges is recorded, and the observed state at that
 `runtime_matches` entry and a `possible_outcomes` code. It costs a handful of steps, it needs no
 model, and the resulting condition is observed rather than guessed, which matters because a
 model asked to speculate about failure modes will produce plausible strings that never appear on
-screen. It also produces the not-found evidence run for free. Known interstitials and other
-recoverable conditions are seeded the same way where the mock app can trigger them, and beyond
-that they accumulate through operator escalations, as described in Section 4.
+screen. It also produces the not-found evidence run for free, and `ACCOUNT_FROZEN` /
+`PERMISSION_DENIED` the same way from two more member fixtures. The two recoverable conditions
+(the session-warning interstitial, the slow load) are the one exception: `cua harden`'s CLI takes
+bad *parameters*, and both are query-flag fixtures on the URL rather than something a bad
+`member_id` reaches, so they were authored directly as `RuntimeMatch` objects in
+`tests/test_recoverable_dialog_e2e.py` rather than mechanically derived -- still real, browser-
+verified recoveries, just not run through the hardening pass itself. Beyond what the mock app can
+trigger, conditions accumulate through operator escalations, as described in Section 4.
 
 *Classification comes from divergence behaviour, not from semantic understanding.* The obvious
 question about the hardening pass is how anything decides that the diverged state is a business
@@ -162,11 +167,12 @@ binary floating point cannot represent decimal currency exactly.
 capability can return, alongside `inputs` and `outputs` rather than buried in the runtime rules
 below, and validated at construction time to match `runtime_matches` in both directions: a code
 with no rule that can produce it is rejected exactly like a rule producing an undeclared code.
-The implemented capability's list, after the hardening pass, is `["MEMBER_NOT_FOUND"]` — the one
-divergence actually observed against the mock portal. `ACCOUNT_FROZEN` and `PERMISSION_DENIED` are
-real business-outcome codes this design accounts for (Section 4) but were not exercised: producing
-them needs member fixtures the target app doesn't have, cut for time rather than silently dropped
-— see Section 7. Session loss during a handoff is a different case, and is implemented: it is a
+The implemented capability's list, after the hardening pass, is `["MEMBER_NOT_FOUND",
+"ACCOUNT_FROZEN", "PERMISSION_DENIED"]` — all three observed against the mock portal, member
+fixtures `99001` (frozen) and `99002` (above the operator's permission tier) added specifically so
+`cua harden` could derive them the same observed-divergence way as `MEMBER_NOT_FOUND`, rather than
+hand-authoring the `runtime_match`. Session loss during a handoff is a different case, and is
+implemented: it is a
 `FailureKind` (`session_lost`), not a business outcome, since a session disappearing mid-run is a
 failure the caller needs to know about, not a legitimate answer. `tests/test_escalation_wiring.py`
 exercises it directly. What's still not exercised is the trigger condition against the real mock
@@ -365,19 +371,23 @@ counts against that matcher's retries, and exhausting them is a hard failure. Os
 a main flow and a recovery flow is therefore impossible by construction rather than caught by a
 counter, which matters because the counter is exactly what a nested recovery would evade.
 
-One recovery kind gets an additional, narrower guard: `retry_step` re-performs the step's own
-action, and a failed checkpoint does not prove that action didn't already take effect -- a slow
-POST looks identical to one that never fired. Retrying a `Click`, `TypeText` or `Select` step risks
-performing it twice (a double-submitted payment), so `retry_step` is refused on any of those three,
+Recovery gets an additional, narrower guard: every `recovery.do` value re-performs the step's own
+action at the end of `_apply_match` -- `dismiss_dialog` and `reload` do something extra FIRST, but
+all four fall through to the identical retry -- and a failed checkpoint does not prove that action
+didn't already take effect: a slow POST looks identical to one that never fired. Retrying a
+`Click`, `TypeText` or `Select` step risks performing it twice (a double-submitted payment)
+regardless of which `do` got it there, so any recoverable match on one of those three is refused,
 checked both at artifact-validation time (when the step is named statically by `after_step`) and
 again at replay time as a backstop for an `after_step: null` matcher, which the schema can't check
-statically since it could land on any step. The check reads the action's own discriminated `type`,
-never `Step.risk_level` -- that field is the same self-reported hint Section 6 already refuses to
-trust for risk tiering, and a hand-edited artifact declaring `risk_level: SAFE_READ` on a `Click`
-step would sail past a check keyed on it. `IRREVERSIBLE` needs no separate case: a retry recurses
-into the same step-execution path every attempt already goes through, so the ordinary risk gate
-refuses or escalates it before a checkpoint can even fail a second time -- there is no point at
-which `retry_step` on an `IRREVERSIBLE` step is ever actually reached.
+statically since it could land on any step. (This guard originally keyed on `do == "retry_step"`
+specifically -- a real gap, since `dismiss_dialog`/`reload` on a Click step carried the identical
+risk and sailed through both layers unchecked; see Section 7.) The check reads the action's own
+discriminated `type`, never `Step.risk_level` -- that field is the same self-reported hint Section 6
+already refuses to trust for risk tiering, and a hand-edited artifact declaring `risk_level:
+SAFE_READ` on a `Click` step would sail past a check keyed on it. `IRREVERSIBLE` needs no separate
+case: a retry recurses into the same step-execution path every attempt already goes through, so the
+ordinary risk gate refuses or escalates it before a checkpoint can even fail a second time -- there
+is no point at which any recovery on an `IRREVERSIBLE` step is ever actually reached.
 
 Both layers have real evidence, not just unit tests, though the schema-level one necessarily
 does (there is no "live" version of an artifact that was refused before it could exist):
@@ -469,11 +479,16 @@ and escalation evidence in Section 5, and a mock app where every degradation is 
 prove only that the happy path works.
 
 The portal is fixtured so that one capability exercises every branch of the result contract
-rather than only the successful one. Four member records cover the outcomes (present, absent,
-frozen, above the operator's permission tier); query switches inject a session-warning
-interstitial, a slow load, a compliance notice and a server error; and one control on the detail
-screen is an irreversible action, so the risk tier in Section 6 can be shown refusing rather than
-described. Being able to trigger these on demand is the whole reason the target is local: a
+rather than only the successful one. Four member records cover the outcomes (present `12345`,
+absent `99999`, frozen `99001`, above the operator's permission tier `99002`); query flags on
+`/members/search` inject a session-warning interstitial (`?interstitial=1`), a slow load
+(`?slow=1`) and a server error (`?inject=500`); and one control on the detail screen is an
+irreversible action, so the risk tier in Section 6 can be shown refusing rather than described.
+A "compliance notice" was considered as a second, separately-worded interstitial and deliberately
+not built: it is the identical `dismiss_dialog`/optional-interstitial mechanism as the
+session-warning one, just different copy, and a second fixture for the same mechanism would
+demonstrate nothing the first doesn't already. Being able to trigger these on demand is the whole
+reason the target is local: a
 public demo site cannot be made to time out, cannot be given a second tenant variant, and comes
 with terms and rate limits attached. Controllability is the argument for building it, not
 convenience. Note that a control carrying an explicit `role` and
@@ -675,7 +690,26 @@ started when the intervention is raised and stopped unconditionally when the wai
 periodic keep-alive against a route declared `SAFE_READ` in the allowlist specifically for this
 purpose. It is a read, it changes no state, and it exists only to stop the idle timer. It runs
 against its own out-of-band HTTP client, never the paused page itself, so it can never disturb the
-stuck state the operator needs to see. The mock target app doesn't implement session expiry, so
+stuck state the operator needs to see.
+
+A real bug lived here until the thread actually started firing: `KeepAliveThread` was constructed
+with the caller's own `ControlBroker` (and the sqlite3 connection inside it), but that connection
+was opened on the main thread, and sqlite3 connections are only usable from the thread that opened
+them by default. The class existed since the escalation mechanism was first built, but nothing
+called `.start()` on it until the wait loop was wired up -- so the cross-thread misuse had no live
+path to fire and went unnoticed until the very first real `PAUSED` wait that outlived one
+`keep_alive.interval_s` tick, which raised `sqlite3.ProgrammingError` from inside the background
+thread, silently (Python's default thread excepthook only prints an unhandled exception, it does
+not propagate to or stop the main thread -- the escalation wait kept running with a dead keep-alive
+underneath it). Fixed by giving the thread a `db_path` instead of a broker instance and having it
+open its own connection inside `run()`, the standard shape for using sqlite3 across threads.
+`tests/test_keepalive_thread_safety.py` reproduces the original crash against the pre-fix code (a
+shared connection raising from the background thread) and locks in the fix; a second, unrelated
+bug found while writing that reproduction -- the class stored its stop `Event` as `self._stop`,
+silently shadowing `threading.Thread`'s own private `_stop()` method that `.join()` relies on
+internally -- is fixed alongside it.
+
+The mock target app doesn't implement session expiry, so
 there is no live scenario here that actually needs the ping — it is exercised (the thread does
 start and stop, verified in `tests/test_escalation_wiring.py`) but not falsified end to end.
 
@@ -897,7 +931,6 @@ Everything below is a deliberate omission with the seam left in place, not an un
   done loosely.
 - *Multi-run flakiness scoring.* Would need enough runs to be meaningful. The mechanism that
   feeds it, layer-hit telemetry, is in place.
-- *Semantic capture of human actions during takeover.* Discussed in Section 5.
 
 **Built since the first draft of this list.** *Approval gate.* `Capability.status` was already
 `draft | approved`, but replay never checked it -- a draft, unreviewed artifact could run
@@ -918,6 +951,31 @@ same resolved artifact.
 it aggregates the per-run `locator_layer_hit` telemetry every replay already emits, across
 capabilities and tenants alike, and distinguishes a persistent demotion (`drifting`) from a
 one-off blip (`occasional`) rather than firing on both identically.
+
+*Semantic capture of human actions during takeover.* Not a cut after all -- built, and belongs
+here instead of the list above. Every handoff writes `human_action.json` alongside
+`intervention.json`: before/after URL and screenshot, the operator's own release note, and
+`human_performed_pending_action`, a fact `find_resume_point` derives mechanically rather than
+takes on the operator's word (`evidence/replay-20260915230202/` is a real run where a good-faith
+note and the derived fact disagree). Section 5 covers it in full; this Cuts list had simply not
+been updated after it landed.
+
+*A retry-safety guard gap, found auditing the guard itself rather than by comparison.* Both the
+schema-level check (`Capability._referential_integrity`) and the replay-time backstop for
+`recovery.do == "retry_step"` on a Click/TypeText/Select step originally checked that one `do`
+value specifically. `dismiss_dialog` and `reload` fall through to the identical retry at the
+bottom of `_apply_match`, so a hardened artifact declaring either of those on a non-idempotent
+step carried the same double-submit risk unguarded. Both layers now key on any recoverable match
+against Click/TypeText/Select, not on which `do` was declared.
+
+*Two declared-but-unenforced schema fields, closed.* `ParamSpec.enum_values` existed since Phase A
+but `_validate_params` only ever checked `pattern` -- an enum-typed input with no separately
+authored regex (the common case, since `enum_values` was assumed to be the check) accepted
+anything. Now enforced before replay touches the surface. `Condition`'s `NamedPredicate` escape
+hatch was never wired up in `evaluate_condition` (unconditionally `False`), which meant it was
+possible to build a `Checkpoint` that could never pass -- structurally valid, silently
+unsatisfiable. Removed from the union rather than left half-built; it returns once a real branch
+backs it.
 
 **What I would build next, in order**
 
