@@ -80,7 +80,7 @@ Replay and hardening require no API key and never call an LLM. Only discovery do
 
 ## Discover a new capability
 
-This is the demo path the brief asks for: a live LLM run against the real target app, producing a draft artifact, which is then reviewed and replayed -- the same three commands as Quick start, but starting from discovery instead of a committed sample.
+This is the assignment's end-to-end demo path: a live LLM run against the target app produces a draft artifact, which is reviewed and replayed.
 
 ```bash
 cp .env.example .env
