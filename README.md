@@ -4,7 +4,7 @@
 
 [Design & implementation](docs/DESIGN_AND_IMPLEMENTATION.md) · [Interview brief](docs/INTERVIEW_BRIEF.md) · [Assignment report](REPORT.md) · [Schema diagrams](docs/schema/) · [Run evidence](evidence/README.md)
 
-Computer-use agents are useful at exploration, but a free-form agent loop is a poor production contract. This project turns a discovered browser workflow into an explicit artifact that a reviewer can inspect, approve, test, scope, and replay safely.
+Computer-use agents are useful at exploration, but a free-form agent loop is a poor production contract. This project turns a discovered browser workflow into an explicit artifact that a reviewer can inspect, approve, test, and replay safely.
 
 ```mermaid
 flowchart LR
@@ -17,39 +17,25 @@ flowchart LR
     F --> H[Same-session human handoff]
 ```
 
-A real, unedited screenshot from `cua replay` driving the actual target app (Playwright, headless) -- the browser navigated, clicked through search results, and read this page itself:
+A replayed run reaches this page in the included legacy target app; the browser navigates, searches, opens the result, and reads the balance itself:
 
 <img src="docs/screenshots/replay-success.png" alt="Playwright-driven browser showing the target app's Member Detail page, with a typed savings balance read back by replay" width="520">
 
 ## Contents
 
-- [What it guarantees](#what-it-guarantees)
 - [Quick start](#quick-start)
+- [Discover a new capability](#discover-a-new-capability)
+- [What it guarantees](#what-it-guarantees)
 - [Capability lifecycle](#capability-lifecycle)
-- [Operations](#operations)
-  - [Scope, tenant variations, and UI drift](#scope-tenant-variations-and-ui-drift)
-  - [Human handoff](#human-handoff)
+- [Beyond the happy path](#beyond-the-happy-path)
 - [Architecture and contracts](#architecture-and-contracts)
 - [Verification](#verification)
 - [Repository map](#repository-map)
 - [License](#license)
 
-## What it guarantees
-
-| Property | How it is enforced |
-| --- | --- |
-| **No LLM in replay** | `cua replay` takes only an approved artifact, typed inputs, policy, and browser adapter. Tests block discovery and outbound TCP during replay. |
-| **Reviewable behavior** | A Pydantic capability declares inputs, outputs, ordered steps, locators, success conditions, terminal outcomes, and recovery. |
-| **Safe failure semantics** | Business outcomes, recoverable conditions, hard failures, and human handoffs have distinct typed results. |
-| **Executor-owned safety** | Scope is the intersection of global policy, artifact profile, and optional tenant scope; the executor derives risk from the live target. |
-| **Resilient targeting** | Each control has a semantic-to-structural locator ladder; the chosen layer becomes drift evidence. |
-| **Auditable handoff** | A leased SQLite state machine lets an operator act in the existing headed browser, then rechecks page and policy before resuming. |
-
-The included target is a local legacy credit-union servicing console. It looks up a member and reads their current savings balance, including a declared `MEMBER_NOT_FOUND` business outcome.
-
 ## Quick start
 
-Requires Python 3.12+ (`pyproject.toml`'s own floor) and Chromium.
+Requires Python 3.12+ and Chromium.
 
 ```bash
 python3 -m venv .venv
@@ -77,7 +63,67 @@ In a second terminal, replay the already-reviewed sample artifact:
   -p member_id=99999
 ```
 
+Expected successful result:
+
+```text
+status: success
+outputs:
+{
+  "savings_balance": {
+    "amount_minor": 816000,
+    "currency": "USD"
+  }
+}
+```
+
 Replay and hardening require no API key and never call an LLM. Only discovery does.
+
+## Discover a new capability
+
+This is the demo path the brief asks for: a live LLM run against the real target app, producing a draft artifact, which is then reviewed and replayed -- the same three commands as Quick start, but starting from discovery instead of a committed sample.
+
+```bash
+cp .env.example .env
+# GEMINI_API_KEY -- required for discovery. Free tier: https://aistudio.google.com/apikey
+```
+
+```bash
+# 1. A live LLM/browser discovery run emits a draft artifact.
+.venv/bin/cua discover \
+  --goal "look up member 12345 and read their current savings balance" \
+  --target http://127.0.0.1:8800/members/search \
+  --name lookup_savings_balance
+
+# 2. Review and promote it. Unattended replay refuses drafts.
+.venv/bin/cua approve \
+  --artifact artifacts/acme_core.lookup_savings_balance/1.json
+
+# 3. Replay the artifact discovery itself just produced.
+.venv/bin/cua replay \
+  --artifact artifacts/acme_core.lookup_savings_balance/1.json \
+  -p member_id=12345
+```
+
+A happy-path discovery run never sees "no such member," so step 1's artifact declares no business outcomes yet. `cua harden` closes that deterministically -- no LLM, a deliberately bad input, and only the condition actually observed gets recorded -- which is how the `2.json` used in Quick start was produced from `1.json`:
+
+```bash
+.venv/bin/cua harden \
+  --artifact artifacts/acme_core.lookup_savings_balance/1.json \
+  -p member_id=99999 \
+  --detect-text "No member records match" \
+  --outcome-code MEMBER_NOT_FOUND
+.venv/bin/cua approve \
+  --artifact artifacts/acme_core.lookup_savings_balance/2.json
+```
+
+## What it guarantees
+
+| Property | How it is enforced |
+| --- | --- |
+| **No LLM in replay** | `cua replay` takes only an approved artifact, typed inputs, policy, and browser adapter. Tests block discovery and outbound TCP during replay. |
+| **Reviewable behavior** | A Pydantic capability declares typed inputs and outputs, ordered steps, locators, success conditions, and recovery rules. |
+| **Safe execution** | The executor enforces scope, derives risk from the live target, bounds recovery, and distinguishes business outcomes from failures. |
+| **Auditable intervention** | A leased SQLite handoff keeps the same browser session alive, then rechecks the page and policy before resuming. |
 
 ## Capability lifecycle
 
@@ -94,122 +140,14 @@ stateDiagram-v2
     Approved --> Draft: harden / set-scope / tag-output / overlay apply
 ```
 
-### Discover, review, and harden a workflow
+## Beyond the happy path
 
-Create `.env` only if you want to run discovery:
+The discover → approve → replay flow above is the core loop; a few other operations build on it. Each has a real, captured run -- exact commands and result -- in [evidence/README.md](evidence/README.md), and its design rationale in [docs/DESIGN_AND_IMPLEMENTATION.md](docs/DESIGN_AND_IMPLEMENTATION.md):
 
-```bash
-cp .env.example .env
-# GEMINI_API_KEY -- required for discovery. Free tier: https://aistudio.google.com/apikey
-# GROQ_API_KEY -- optional secondary provider, used only if the Gemini call
-# itself fails. Free tier: https://console.groq.com/keys
-```
-
-```bash
-# A live LLM/browser discovery run emits a draft artifact.
-.venv/bin/cua discover \
-  --goal "look up member 12345 and read their current savings balance" \
-  --target http://127.0.0.1:8800/members/search \
-  --name lookup_savings_balance
-
-# Review and promote the artifact. Unattended replay refuses drafts.
-.venv/bin/cua approve \
-  --artifact artifacts/acme_core.lookup_savings_balance/1.json
-
-# Replay deliberately bad input without an LLM, then add only the condition
-# that was actually observed. Hardening creates a new draft version.
-.venv/bin/cua harden \
-  --artifact artifacts/acme_core.lookup_savings_balance/1.json \
-  -p member_id=99999 \
-  --detect-text "No member records match" \
-  --outcome-code MEMBER_NOT_FOUND
-.venv/bin/cua approve \
-  --artifact artifacts/acme_core.lookup_savings_balance/2.json
-```
-
-Discovery's own tool set matches everything replay can execute: `navigate`/`click`/`type`/`read`, plus `select` (a dropdown, by its visible option label) and `wait` (an explicit wait for text to appear, never a fixed sleep). A required branch selector or a genuinely slow-loading page -- like the one the `cu_northgate` overlay below adds by hand -- can now be *discovered* directly, not only authored into an overlay after the fact.
-
-Changing scope or output sensitivity likewise returns an artifact to `draft`, so the changed contract is reviewed before replay. (If discovery itself stalls and needs a human handoff to finish, see **Human handoff** below -- including what that means for approving the result.)
-
-## Operations
-
-### Scope, tenant variations, and UI drift
-
-An artifact can only narrow deployment policy. Its effective destination scope is:
-
-```text
-global allowlist ∩ artifact app profile ∩ optional tenant scope
-```
-
-**Narrow an artifact's own scope**, independent of any tenant. `set-scope` preflights against the capability's own steps and refuses (unless `--force`) to save a scope that would already exclude one of them; it becomes `draft` for the same reason `harden` does, so it needs its own re-approval:
-
-```bash
-.venv/bin/cua set-scope \
-  --artifact artifacts/acme_core.lookup_savings_balance/1.json \
-  --base-url http://127.0.0.1:8800 \
-  --allowed-route-pattern "/members/*"
-.venv/bin/cua approve \
-  --artifact artifacts/acme_core.lookup_savings_balance/1.json
-```
-
-**Reuse the same capability across tenants.** A tenant overlay is a version-pinned *patch* (deltas only -- most tenants have an empty one), resolved into a new artifact that is validated again and reviewed independently of its base:
-
-```bash
-.venv/bin/cua overlay apply \
-  --base artifacts/acme_core.lookup_savings_balance/2.json \
-  --overlay overlays/acme_core.lookup_savings_balance/cu_northgate.json
-.venv/bin/cua approve \
-  --artifact artifacts/acme_core.lookup_savings_balance.cu_northgate/1.json
-
-# Same capability, same outputs shape, replayed against a SECOND tenant's
-# markup it was never recorded on (different labels, a real HTML5-required
-# branch selector, a differently-classed detail control).
-.venv/bin/cua replay \
-  --artifact artifacts/acme_core.lookup_savings_balance.cu_northgate/1.json \
-  -p member_id=12345 -p branch=main
-# -> status: success, typed Money output
-```
-
-**Check for UI drift** across every completed run (both tenants included), grouped by capability and step:
-
-```bash
-.venv/bin/cua drift-report
-```
-
-### Human handoff
-
-Either replay or discovery can pause and hand the live browser to a person when it's stuck -- same SQLite-backed broker underneath -- but what happens on resume is different for each.
-
-**Replay stalls** in the existing headed browser rather than continuing autonomously. The operator claims the run, fixes it directly in that browser, and releases it; replay rechecks its page and safety conditions before resuming. `--fault` injects a real failure for one run without touching the saved artifact, to trigger this end to end:
-
-```bash
-# Terminal 1: force a real HTTP 500 on the entry page, with handoff enabled (the default)
-.venv/bin/cua replay \
-  --artifact artifacts/acme_core.lookup_savings_balance/2.json \
-  -p member_id=12345 \
-  --fault "inject=500"
-# stalls with: "if this run gets stuck: cua ops claim <run_id> ..."
-
-# Terminal 2, once it's stuck: claim it, then fix it by hand in the
-# already-open browser window (e.g. reload the URL without ?inject=500)
-.venv/bin/cua ops claim <run_id>
-.venv/bin/cua ops release <run_id> --note "reloaded without ?inject=500"
-# the waiting Terminal 1 process notices, re-checks its checkpoint, and
-# resumes to SUCCESS with the same typed balance output
-```
-
-The note is evidence, not an instruction: `human_action.json` records before/after browser state and a *derived* resume decision that doesn't always agree with it (see `evidence/replay-20260915230202/`, where they disagree on purpose).
-
-**Discovery stalls** the same way, but `release` takes `--resolution` instead of a free-text note -- discovery has no checkpoint yet to derive a resume point from, so the operator states what happened explicitly:
-
-- `cleared_obstacle` -- hands back to the LLM, which keeps deciding and recording (`evidence/discovery-handoff-*/`)
-- `workflow_advanced` -- the operator finished the task by hand; the run aborts with no artifact
-
-```bash
-.venv/bin/cua ops release <run_id> --resolution cleared_obstacle
-```
-
-A `cleared_obstacle` artifact also needs `cua validate --artifact <path> -p key=value` before `cua approve --artifact <path> --validation-run <id>` will accept it -- some of its steps ran on a page a human already touched, so nothing has proven it replays unattended yet.
+- **Scope narrowing** (`cua set-scope`) restricts an artifact to specific origins/routes and re-requires approval.
+- **Tenant overlays** (`cua overlay apply`) resolve a base capability plus a version-pinned per-tenant patch into a new, independently reviewed artifact -- reusing one capability across heterogeneous markup.
+- **Drift detection** (`cua drift-report`) aggregates which locator layer resolved each step across every completed run, surfacing brittle steps before they break.
+- **Human handoff** pauses replay *or* discovery in the live browser session (`cua ops claim <run_id>` / `cua ops release <run_id>`) rather than failing outright; discovery-side handoffs additionally require `cua validate` before `cua approve` will accept them, since part of the run was driven by a human, not the LLM.
 
 ## Architecture and contracts
 
@@ -227,10 +165,6 @@ The detailed technical narrative is in [docs/DESIGN_AND_IMPLEMENTATION.md](docs/
 ```bash
 .venv/bin/python -m pytest -q
 .venv/bin/python -m ruff check src tests
-
-# Optional: regenerate and verify checked-in schema diagrams (Graphviz required)
-.venv/bin/python scripts/render_schema_graph.py
-.venv/bin/python scripts/render_schema_graph.py --check
 ```
 
 Tests cover artifact validation, replay safety and outcome ordering, scope/risk policy, bounded recovery, handoff ownership (both replay- and discovery-side), pre-approval validation, overlays, drift reporting, and a real Chromium end-to-end path from target-app fixture data to typed `Money` output.
@@ -239,15 +173,13 @@ Tests cover artifact validation, replay safety and outcome ordering, scope/risk 
 
 | Path | Responsibility |
 | --- | --- |
-| `src/cua/target_app/` | The included proxy target: a mock legacy credit-union servicing console (FastAPI + server-rendered templates), plus a second tenant variant for the overlay demo. |
+| `src/cua/target_app/` | The included proxy target: a mock legacy credit-union servicing console. |
 | `src/cua/agent/` | LLM-only discovery, compilation, and hardening workflow. |
 | `src/cua/schema/` | Pydantic capability, overlay, and replay-result contracts. |
 | `src/cua/surface/` | `SurfaceAdapter` protocol, the locator-ladder resolver, and the Playwright `WebAdapter`. |
 | `src/cua/replay/` | Deterministic engine and terminal-match evaluation. |
 | `src/cua/safety/` | Allowlist, scope, risk, bounds, and redaction enforcement. |
 | `src/cua/escalation/` | SQLite control-transfer state and human evidence. |
-| `src/cua/overlay/` | Resolves a base artifact + a tenant overlay into a new, re-validated draft artifact. |
-| `src/cua/observability/` | Cross-run locator-layer drift detection. |
 | `artifacts/` and `overlays/` | Versioned reviewed behavior and tenant-specific deltas. |
 | `evidence/` | Captured discovery, replay, and handoff records. |
 
