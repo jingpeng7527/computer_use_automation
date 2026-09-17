@@ -836,6 +836,16 @@ no-broker case unchanged; `tests/test_execution_guard.py` covers the budget laye
 against the real target app and a real browser, including the tamper case (an edit between
 validation and approval is refused, not silently accepted).
 
+`evidence/discovery-handoff-cleared-*/` and `evidence/discovery-handoff-advanced-*/` run this live,
+one per resolution -- a real `run_discovery()`, a real `ControlBroker` across a real thread boundary
+(mirroring the two real OS processes `cua discover`/`cua ops` actually are), and for the
+`cleared_obstacle` run, a real saved artifact with `discovery_handoffs == 1` and a real `cua approve`
+refusing it without `--validation-run`. Only the model and the surface are scripted, for the same
+reason `session-lost-*` is: reliably forcing a real Gemini/Groq call into a no-progress stall on
+demand isn't something a live model call can be made to do, and the mechanism under test -- the
+broker, the phase/resolution enforcement, the abort path -- is the real code regardless of what it's
+observing.
+
 ---
 
 ## 6. Safety
@@ -1075,7 +1085,7 @@ full.
 
 **The one thing that is not a cut.** The discovery run is real: a live LLM-driven run against the
 mock portal, with the transcript, the emitted artifact and the resulting replay in `/evidence/`.
-The brief is unambiguous that this cannot be described in place of being done. Twelve runs are
+The brief is unambiguous that this cannot be described in place of being done. Fourteen runs are
 committed, indexed in `evidence/README.md`, and every path quoted in this document resolves to a
 file in that tree:
 
@@ -1093,16 +1103,21 @@ file in that tree:
 | `recovery-refused-schema-20260915234907` | attempted to construct a `Capability` declaring `retry_step` on a `Click` step | Real `pydantic.ValidationError` -- **scripted, no browser**, see `NOTE.md` |
 | `recovery-refused-runtime-20260915234907` | real `replay()`, same class of artifact but with `after_step: null` (the shape the schema check can't catch statically) | `FAILURE`, kind `recovery_refused`, `click_count == 1` -- **scripted surface**, see `NOTE.md` |
 | `session-lost-20260915234907` | real `replay()` + a real SQLite broker across a real thread boundary; operator claims, releases without fixing anything, on a surface reporting an off-scope location | `FAILURE`, kind `session_lost` -- **scripted surface**, see `NOTE.md` |
+| `discovery-handoff-cleared-20260917022631` | real `run_discovery()` + a real SQLite broker across a real thread boundary; a scripted stall, `--resolution cleared_obstacle` hands back a fresh observation | discovery completes, real `draft` artifact with `discovery_handoffs == 1`, real `cua approve` refuses it without `--validation-run` -- **scripted model/surface**, see `NOTE.md` |
+| `discovery-handoff-advanced-20260917022632` | same stall, `--resolution workflow_advanced` | discovery aborts, `compile_capability()` refuses with the existing "cannot compile a failed discovery run" error -- **scripted model/surface**, see `NOTE.md` |
 
 `demo-handoff-1789447614` is the one worth reading for the handoff mechanism; the two
 `cu_northgate` runs are the one worth reading for Section 4's multi-tenant claim, since they are
 the same base capability resolved once and replayed against a surface it was never recorded on;
 `replay-20260915230202` is the one worth reading for the `human_action.json` evidence above. The
-last four rows exist for a narrower reason: `not_approved`, `recovery_refused` and `session_lost`
-were all real, already-implemented, already-unit-tested mechanisms with no evidence proving they
-actually fire outside a test file -- a gap found by re-reading the brief's own evidence
-requirement, not a bug in the mechanisms themselves. Two of the four necessarily use a scripted
-surface rather than the real mock app, and say so plainly in their own `NOTE.md`.
+`replay-20260915235033`/`recovery-refused-*`/`session-lost-*` rows exist for a narrower reason:
+`not_approved`, `recovery_refused` and `session_lost` were all real, already-implemented,
+already-unit-tested mechanisms with no evidence proving they actually fire outside a test file --
+a gap found by re-reading the brief's own evidence requirement, not a bug in the mechanisms
+themselves. The two `discovery-handoff-*` rows are the same story one level later: the mechanism
+itself didn't exist until Section 5's own gap (discovery-side handoff, listed since an early draft
+but never wired up) was found and closed, and these two runs are its first live proof. All five of
+these scripted-surface rows say so plainly in their own `NOTE.md`.
 
 This is the second generation of this evidence. A review of the first caught two real bugs, not
 just wording problems: the compiler could anchor a locator on a dynamic table cell (a results

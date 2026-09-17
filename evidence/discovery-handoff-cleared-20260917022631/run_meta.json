@@ -1,0 +1,28 @@
+{
+  "run_id": "discovery-handoff-cleared-20260917022631",
+  "goal": "read the recovered value after clearing a stuck retry banner",
+  "success": true,
+  "step_count": 6,
+  "steps": [
+    "navigate",
+    "click",
+    "click",
+    "click",
+    "read",
+    "finish"
+  ],
+  "interventions": [
+    {
+      "trigger": "no_progress",
+      "resolution": "cleared_obstacle",
+      "operator_note": "dismissed the retry banner that was blocking the page",
+      "before_url": "http://fake.example/stuck",
+      "after_url": "http://fake.example/recovered"
+    }
+  ],
+  "compiled_artifact": {
+    "capability_id": "acme_core.discovery_handoff_evidence",
+    "status": "draft",
+    "discovery_handoffs": 1
+  }
+}

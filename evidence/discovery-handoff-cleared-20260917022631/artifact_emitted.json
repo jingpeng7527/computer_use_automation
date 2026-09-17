@@ -1,0 +1,162 @@
+{
+  "schema_version": "1.0",
+  "capability_id": "acme_core.discovery_handoff_evidence",
+  "version": 1,
+  "status": "draft",
+  "title": "Discovery Handoff Evidence",
+  "summary": "read the recovered value after clearing a stuck retry banner",
+  "app_profile": {
+    "product": "fake-scripted-target",
+    "version": "0",
+    "base_url": null,
+    "allowed_route_patterns": []
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "value",
+      "type": "string",
+      "description": "read from the page during discovery (value)",
+      "source_step_id": "s4",
+      "sensitivity": "none"
+    }
+  ],
+  "possible_outcomes": [],
+  "steps": [
+    {
+      "id": "s0",
+      "intent": "navigate to http://fake.example/search",
+      "action": {
+        "type": "navigate",
+        "url_template": "http://fake.example/search"
+      },
+      "risk_level": "SAFE_READ",
+      "target": null,
+      "wait": null,
+      "checkpoint": null
+    },
+    {
+      "id": "s1",
+      "intent": "click 'Retry'",
+      "action": {
+        "type": "click"
+      },
+      "risk_level": "REVERSIBLE_WRITE",
+      "target": {
+        "strategies": [
+          {
+            "rationale": "has a real accessible name",
+            "layer": 1,
+            "type": "role_name",
+            "role": "button",
+            "name": "Retry"
+          }
+        ]
+      },
+      "wait": null,
+      "checkpoint": null
+    },
+    {
+      "id": "s2",
+      "intent": "click 'Retry'",
+      "action": {
+        "type": "click"
+      },
+      "risk_level": "REVERSIBLE_WRITE",
+      "target": {
+        "strategies": [
+          {
+            "rationale": "has a real accessible name",
+            "layer": 1,
+            "type": "role_name",
+            "role": "button",
+            "name": "Retry"
+          }
+        ]
+      },
+      "wait": null,
+      "checkpoint": null
+    },
+    {
+      "id": "s3",
+      "intent": "click 'Retry'",
+      "action": {
+        "type": "click"
+      },
+      "risk_level": "REVERSIBLE_WRITE",
+      "target": {
+        "strategies": [
+          {
+            "rationale": "has a real accessible name",
+            "layer": 1,
+            "type": "role_name",
+            "role": "button",
+            "name": "Retry"
+          }
+        ]
+      },
+      "wait": null,
+      "checkpoint": {
+        "description": "reached a page headed 'Recovered'",
+        "all_of": [
+          {
+            "kind": "role_name",
+            "role": "heading",
+            "name": "Recovered",
+            "visible": true
+          }
+        ],
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "s4",
+      "intent": "read value",
+      "action": {
+        "type": "read",
+        "into": "value",
+        "attribute": null
+      },
+      "risk_level": "SAFE_READ",
+      "target": {
+        "strategies": [
+          {
+            "rationale": "has a real accessible name",
+            "layer": 1,
+            "type": "role_name",
+            "role": "textbox",
+            "name": "Value"
+          }
+        ]
+      },
+      "wait": null,
+      "checkpoint": null
+    }
+  ],
+  "runtime_matches": [],
+  "recovery_budget": {
+    "per_run": 5,
+    "max_depth": 1
+  },
+  "success_condition": {
+    "description": "final page headed 'Recovered'",
+    "all_of": [
+      {
+        "kind": "role_name",
+        "role": "heading",
+        "name": "Recovered",
+        "visible": true
+      }
+    ],
+    "timeout_ms": 10000
+  },
+  "provenance": {
+    "discovered_at": "2026-09-17T02:26:32.036203Z",
+    "model": "fake-scripted-model",
+    "goal": "read the recovered value after clearing a stuck retry banner",
+    "discovery_run_id": "discovery-handoff-cleared-20260917022631",
+    "transcript_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "human_edited": false,
+    "discovery_handoffs": 1
+  }
+}

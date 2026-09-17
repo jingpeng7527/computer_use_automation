@@ -4,12 +4,12 @@ Every run below is a real execution of the real code -- a live LLM call for disc
 `replay()` engine, the actual `Capability`/`RuntimeMatch` schema, a real SQLite control-transfer
 broker for every handoff run. Nothing here is hand-written output. Most rows also drive a real
 headed Playwright browser against the real local FastAPI target app; reproduce those with the
-target app running (`cua serve-target`) and the command shown. Three rows (marked below) instead
-use a scripted `SurfaceAdapter` -- same technique this project's own unit tests use -- because the
-mock target app has no fixture that can trigger that specific condition live (documented in each
-row and in that run's own `NOTE.md`). In every one of those three, only the *surface being
-observed* is scripted; the engine, schema, and (for the session-lost row) the broker are the real
-code, unmodified.
+target app running (`cua serve-target`) and the command shown. Five rows (marked below) instead
+use a scripted `LLMProvider`/`SurfaceAdapter` -- same technique this project's own unit tests use
+-- because the mock target app has no fixture that can trigger that specific condition live
+(documented in each row and in that run's own `NOTE.md`). In every one of those five, only the
+*surface being observed* (and, for the two discovery-handoff rows, the model) is scripted; the
+engine, schema, and broker are the real code, unmodified.
 
 | Directory | Command | Result |
 | --- | --- | --- |
@@ -25,14 +25,20 @@ code, unmodified.
 | `recovery-refused-schema-20260915234907/` | attempted `Capability.model_validate(...)` on a hand-built artifact declaring `recovery.do="retry_step"` on a Click step | Real `pydantic.ValidationError` (`validation_error.txt`) -- the schema-level half of the retry_step guard (REPORT.md sec 3) refuses to let such an artifact be constructed at all, let alone saved. **Scripted, no browser** -- see the row's `NOTE.md`. |
 | `recovery-refused-runtime-20260915234907/` | real `replay()` call against the same class of artifact, but with the offending `runtime_match`'s `after_step` set to `None` (the one shape the schema check can't catch statically) | `FAILED`, kind `recovery_refused`, `click_count == 1` -- the runtime backstop refuses the retry BEFORE a second click, not after one already landed twice. **Scripted surface** -- see `NOTE.md` for exactly what is and isn't real here. |
 | `session-lost-20260915234907/` | real `replay()` + a real SQLite `ControlBroker` (two independent connections, one per thread, mirroring the two real OS processes `cua replay`/`cua ops` actually are) -- claim, then release with a note but no real fix, on a surface that reports an off-scope location after the "crash" | `FAILED`, kind `session_lost`, `observed: "now at http://evil.example.com/login"`. Also produced real `intervention.json` and `human_action.json` (`resume_decision: "none"`, matching the good-faith-note-vs-derived-fact point of `replay-20260915230202/`). **Scripted surface** -- see `NOTE.md`. |
+| `discovery-handoff-cleared-20260917022631/` | real `run_discovery()` + a real `ControlBroker` across a real thread boundary -- a scripted, unresponsive page triggers a genuine no-progress stall, `cua ops claim`/`release --resolution cleared_obstacle` hands back a FRESH observation | discovery completes (`success: true`), `compile_capability()` emits a real `draft` artifact with `provenance.discovery_handoffs == 1`; a real `cua approve` on it (no `--validation-run`) is refused -- see `approve_refusal_without_validation.txt`. **Scripted model/surface** -- see `NOTE.md`. |
+| `discovery-handoff-advanced-20260917022632/` | same stall, released with `--resolution workflow_advanced` (the operator did the task by hand instead) | discovery aborts (`success: false`, reason names `workflow_advanced`); `compile_capability()` refuses with the same, unmodified "cannot compile a failed discovery run" error (`compile_refusal.txt`) -- no new exception type needed. **Scripted model/surface** -- see `NOTE.md`. |
 
-This is the fifth generation of this evidence set. Four rounds of review found
+This is the sixth generation of this evidence set. Four rounds of review found
 real, fixable gaps, each time in a versioned or committed file; a fourth round added
-the two `cu_northgate` runs once the overlay resolver was actually built, and a fifth
-round (see below) closed a gap found by re-reading the assignment brief itself: three
-real safety/control-flow mechanisms this project implements and unit-tests
+the two `cu_northgate` runs once the overlay resolver was actually built; a fifth
+round closed a gap found by re-reading the assignment brief itself: three real
+safety/control-flow mechanisms this project implements and unit-tests
 (`not_approved`, `recovery_refused`, `session_lost`) had no evidence proving they fire
-outside a test file.
+outside a test file. A sixth round added the two `discovery-handoff-*` runs once the
+discovery-side handoff mechanism itself was built -- Section 3.6 of the brief lists
+"the agent is stuck during discovery" as one of three cases needing human-in-the-loop,
+and until this mechanism existed, only the other two (a stuck replay, an irreversible
+step) were actually wired to it.
 
 1. The compiler could anchor a locator on a dynamic table cell -- a results row's
    member name ended up recorded in the artifact -- and discovery's own CLI wrote
@@ -107,9 +113,16 @@ were already correctly implemented and unit-tested; only the live/real-code proo
   the literal `str(pydantic.ValidationError)` raised when trying to construct the
   artifact next to it, and the artifact itself, so a reader can see exactly which
   step/field triggered the refusal without re-running anything.
-- `NOTE.md` (three rows only) -- what's real and what's scripted in that specific run,
+- `NOTE.md` (five rows only) -- what's real and what's scripted in that specific run,
   and why the mock target app can't produce that condition live. Present precisely
   because a claim of "real" needs a place to be honest about the one part that isn't.
+- `compile_refusal.txt` (`discovery-handoff-advanced-*` only) -- the literal
+  `str(ValueError)` `compile_capability()` raises for a discovery transcript whose
+  handoff resolved `workflow_advanced`.
+- `approve_refusal_without_validation.txt` (`discovery-handoff-cleared-*` only) -- a
+  real, unmodified `cua approve` invocation on the artifact this run compiled, refusing
+  to promote it without a `cua validate` run first. Needed no scripting: `cua approve`
+  only ever inspects the artifact file, never touches a browser.
 
 ## How to check `--fault` isn't just short-circuiting the engine
 

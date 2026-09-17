@@ -1,0 +1,20 @@
+{
+  "run_id": "discovery-handoff-advanced-20260917022632",
+  "goal": "read the recovered value after clearing a stuck retry banner",
+  "success": false,
+  "reason": "aborted: operator resolved a discovery handoff with resolution=workflow_advanced -- the operator's own actions advanced the goal outside the LLM's recorded steps, so no artifact can be compiled from this run",
+  "step_count": 4,
+  "steps": [
+    "navigate",
+    "click",
+    "click",
+    "click"
+  ],
+  "interventions": [
+    {
+      "trigger": "no_progress",
+      "resolution": "workflow_advanced",
+      "operator_note": "I just finished the lookup myself, easier that way"
+    }
+  ]
+}

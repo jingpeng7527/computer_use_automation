@@ -1,0 +1,1 @@
+cannot compile a failed discovery run: aborted: operator resolved a discovery handoff with resolution=workflow_advanced -- the operator's own actions advanced the goal outside the LLM's recorded steps, so no artifact can be compiled from this run

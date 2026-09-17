@@ -1,0 +1,21 @@
+{
+  "intervention_id": "discovery-handoff-advanced-20260917022632-intervention",
+  "run_id": "discovery-handoff-advanced-20260917022632",
+  "phase": "discovery",
+  "capability_id": null,
+  "requested_capability_id": "acme_core.discovery_handoff_evidence",
+  "goal": "read the recovered value after clearing a stuck retry banner",
+  "step_id": "discovery",
+  "reason": "no progress for 3 consecutive steps",
+  "expected": "the LLM makes forward progress toward the goal",
+  "observed": "no progress for several consecutive steps at http://fake.example/stuck",
+  "screenshot_ref": "evidence/discovery-handoff-advanced-20260917022632/discovery-handoff-advanced-20260917022632-stall-before.png",
+  "completed_steps": [
+    "-1",
+    "0",
+    "1",
+    "2"
+  ],
+  "session_handle": "discovery-handoff-advanced-20260917022632",
+  "raised_at": 1789611992.052487
+}

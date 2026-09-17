@@ -1,0 +1,1 @@
+artifacts/acme_core.discovery_handoff_evidence/1.json recorded 1 discovery handoff(s) -- run `cua validate --artifact artifacts/acme_core.discovery_handoff_evidence/1.json -p ...` first, then pass --validation-run <its run_id> here.
