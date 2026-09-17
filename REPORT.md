@@ -147,7 +147,7 @@ across a flow's different stages. If neither holds and the session has also drif
 allowlisted scope, that's reported as `session_lost`, a declared failure kind, rather than retried
 as an ordinary give-up. Every handoff writes `human_action.json`: before/after URL and screenshot,
 the operator's own note, and a `human_performed_pending_action` fact derived *mechanically* by
-re-checking the page -- never taken on the operator's word, which `evidence/replay-20260915230202/`
+re-checking the page -- never taken on the operator's word, which `evidence/replay-20260917214233/`
 demonstrates directly (a good-faith note and the derived fact disagree, on purpose).
 `evidence/session-lost-20260915234907/` exercises the session-loss path against real broker/engine
 code, since the mock app has no session-expiry mechanism to trigger it live.
