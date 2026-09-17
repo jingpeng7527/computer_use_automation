@@ -64,7 +64,7 @@ In a second terminal, replay the already-reviewed sample artifact:
   -p member_id=99999
 ```
 
-Expected successful result:
+Expected result for the first command (member 12345):
 
 ```text
 status: success
@@ -138,6 +138,7 @@ stateDiagram-v2
     Approved --> Replay: typed parameters
     Replay --> Success: success condition
     Replay --> BusinessOutcome: declared terminal condition
+    Replay --> Failed: unrecoverable error
     Replay --> HumanHandoff: policy-gated intervention
     HumanHandoff --> Replay: release + re-check
     Approved --> Draft: harden / set-scope / tag-output / overlay apply
@@ -177,7 +178,7 @@ Tests cover artifact validation, replay safety and outcome ordering, scope/risk 
 | Path | Responsibility |
 | --- | --- |
 | `src/cua/target_app/` | The included proxy target: a mock legacy credit-union servicing console. |
-| `src/cua/agent/` | LLM-only discovery, compilation, and hardening workflow. |
+| `src/cua/agent/` | Discovery (the only LLM call in the whole project), plus deterministic compilation and hardening. |
 | `src/cua/schema/` | Pydantic capability, overlay, and replay-result contracts. |
 | `src/cua/surface/` | `SurfaceAdapter` protocol, the locator-ladder resolver, and the Playwright `WebAdapter`. |
 | `src/cua/replay/` | Deterministic engine and terminal-match evaluation. |
