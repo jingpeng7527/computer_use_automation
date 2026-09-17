@@ -6,6 +6,7 @@ build-backend = "hatchling.build"
 name = "cua"
 version = "0.1.0"
 description = "Computer-use automation: LLM discovers a UI flow once, then deterministic replay invokes it as a reusable capability."
+license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
     "playwright>=1.48",

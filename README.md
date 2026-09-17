@@ -17,6 +17,23 @@ flowchart LR
     F --> H[Same-session human handoff]
 ```
 
+A real, unedited screenshot from `cua replay` driving the actual target app (Playwright, headless) -- the browser navigated, clicked through search results, and read this page itself:
+
+<img src="docs/screenshots/replay-success.png" alt="Playwright-driven browser showing the target app's Member Detail page, with a typed savings balance read back by replay" width="520">
+
+## Contents
+
+- [What it guarantees](#what-it-guarantees)
+- [Quick start](#quick-start)
+- [Capability lifecycle](#capability-lifecycle)
+- [Operations](#operations)
+  - [Scope, tenant variations, and UI drift](#scope-tenant-variations-and-ui-drift)
+  - [Human handoff](#human-handoff)
+- [Architecture and contracts](#architecture-and-contracts)
+- [Verification](#verification)
+- [Repository map](#repository-map)
+- [License](#license)
+
 ## What it guarantees
 
 | Property | How it is enforced |
@@ -32,7 +49,7 @@ The included target is a local legacy credit-union servicing console. It looks u
 
 ## Quick start
 
-Requires Python 3.11+ and Chromium.
+Requires Python 3.12+ (`pyproject.toml`'s own floor) and Chromium.
 
 ```bash
 python3 -m venv .venv
@@ -161,9 +178,9 @@ global allowlist ∩ artifact app profile ∩ optional tenant scope
 
 ### Human handoff
 
-If policy requires a person, replay pauses in the existing headed browser rather than continuing autonomously. The operator claims the run, acts directly in that browser, and releases it; replay then rechecks its page and safety conditions.
+Either replay or discovery can pause and hand the live browser to a person when it's stuck -- same SQLite-backed broker underneath -- but what happens on resume is different for each.
 
-To actually trigger this end to end rather than just read about it, `--fault` injects a real failure for one run without touching the saved artifact:
+**Replay stalls** in the existing headed browser rather than continuing autonomously. The operator claims the run, fixes it directly in that browser, and releases it; replay rechecks its page and safety conditions before resuming. `--fault` injects a real failure for one run without touching the saved artifact, to trigger this end to end:
 
 ```bash
 # Terminal 1: force a real HTTP 500 on the entry page, with handoff enabled (the default)
@@ -183,9 +200,16 @@ To actually trigger this end to end rather than just read about it, `--fault` in
 
 The note is evidence, not an instruction: `human_action.json` records before/after browser state and a *derived* resume decision that doesn't always agree with it (see `evidence/replay-20260915230202/`, where they disagree on purpose).
 
-`cua discover` handles a stall the same way, except `release` there takes `--resolution cleared_obstacle|workflow_advanced` instead of a free-text note -- discovery has no checkpoint yet to derive a resume point from, so the operator states it explicitly. `cleared_obstacle` resumes the LLM; `workflow_advanced` aborts with no artifact (see `evidence/discovery-handoff-*/`).
+**Discovery stalls** the same way, but `release` takes `--resolution` instead of a free-text note -- discovery has no checkpoint yet to derive a resume point from, so the operator states what happened explicitly:
 
-A `cleared_obstacle` run also needs `cua validate --artifact <path> -p key=value` before `cua approve --artifact <path> --validation-run <id>` will accept it -- some of its steps ran on a page a human already touched, so nothing has proven it replays unattended yet.
+- `cleared_obstacle` -- hands back to the LLM, which keeps deciding and recording (`evidence/discovery-handoff-*/`)
+- `workflow_advanced` -- the operator finished the task by hand; the run aborts with no artifact
+
+```bash
+.venv/bin/cua ops release <run_id> --resolution cleared_obstacle
+```
+
+A `cleared_obstacle` artifact also needs `cua validate --artifact <path> -p key=value` before `cua approve --artifact <path> --validation-run <id>` will accept it -- some of its steps ran on a page a human already touched, so nothing has proven it replays unattended yet.
 
 ## Architecture and contracts
 
@@ -228,3 +252,7 @@ Tests cover artifact validation, replay safety and outcome ordering, scope/risk 
 | `evidence/` | Captured discovery, replay, and handoff records. |
 
 For the concise evaluator narrative, start with [docs/INTERVIEW_BRIEF.md](docs/INTERVIEW_BRIEF.md). For the complete design, start with [docs/DESIGN_AND_IMPLEMENTATION.md](docs/DESIGN_AND_IMPLEMENTATION.md).
+
+## License
+
+[MIT](LICENSE)
