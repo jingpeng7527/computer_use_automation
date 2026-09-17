@@ -15,6 +15,7 @@ flowchart LR
     E --> F[Deterministic replay]
     F --> G[Typed result + evidence]
     F --> H[Same-session human handoff]
+    H --> F
 ```
 
 A replayed run reaches this page in the included legacy target app; the browser navigates, searches, opens the result, and reads the balance itself:
@@ -87,33 +88,35 @@ cp .env.example .env
 # GEMINI_API_KEY -- required for discovery. Free tier: https://aistudio.google.com/apikey
 ```
 
+`--name` below is `demo_lookup_savings_balance`, not `lookup_savings_balance` -- artifact versions save to `artifacts/<capability_id>/<version>.json` and a fresh discovery run always starts at version 1, so reusing the sample's name would silently overwrite the already-approved `artifacts/acme_core.lookup_savings_balance/1.json` shipped in this repo.
+
 ```bash
 # 1. A live LLM/browser discovery run emits a draft artifact.
 .venv/bin/cua discover \
   --goal "look up member 12345 and read their current savings balance" \
   --target http://127.0.0.1:8800/members/search \
-  --name lookup_savings_balance
+  --name demo_lookup_savings_balance
 
 # 2. Review and promote it. Unattended replay refuses drafts.
 .venv/bin/cua approve \
-  --artifact artifacts/acme_core.lookup_savings_balance/1.json
+  --artifact artifacts/acme_core.demo_lookup_savings_balance/1.json
 
 # 3. Replay the artifact discovery itself just produced.
 .venv/bin/cua replay \
-  --artifact artifacts/acme_core.lookup_savings_balance/1.json \
+  --artifact artifacts/acme_core.demo_lookup_savings_balance/1.json \
   -p member_id=12345
 ```
 
-A happy-path discovery run never sees "no such member," so step 1's artifact declares no business outcomes yet. `cua harden` closes that deterministically -- no LLM, a deliberately bad input, and only the condition actually observed gets recorded -- which is how the `2.json` used in Quick start was produced from `1.json`:
+A happy-path discovery run never sees "no such member," so step 1's artifact declares no business outcomes yet. `cua harden` closes that deterministically -- no LLM, a deliberately bad input, and only the condition actually observed gets recorded -- which is how the sample's own `2.json` (used in Quick start) was produced from its `1.json`:
 
 ```bash
 .venv/bin/cua harden \
-  --artifact artifacts/acme_core.lookup_savings_balance/1.json \
+  --artifact artifacts/acme_core.demo_lookup_savings_balance/1.json \
   -p member_id=99999 \
   --detect-text "No member records match" \
   --outcome-code MEMBER_NOT_FOUND
 .venv/bin/cua approve \
-  --artifact artifacts/acme_core.lookup_savings_balance/2.json
+  --artifact artifacts/acme_core.demo_lookup_savings_balance/2.json
 ```
 
 ## What it guarantees
@@ -147,7 +150,7 @@ The discover → approve → replay flow above is the core loop; a few other ope
 - **Scope narrowing** (`cua set-scope`) restricts an artifact to specific origins/routes and re-requires approval.
 - **Tenant overlays** (`cua overlay apply`) resolve a base capability plus a version-pinned per-tenant patch into a new, independently reviewed artifact -- reusing one capability across heterogeneous markup.
 - **Drift detection** (`cua drift-report`) aggregates which locator layer resolved each step across every completed run, surfacing brittle steps before they break.
-- **Human handoff** pauses replay *or* discovery in the live browser session (`cua ops claim <run_id>` / `cua ops release <run_id>`) rather than failing outright; discovery-side handoffs additionally require `cua validate` before `cua approve` will accept them, since part of the run was driven by a human, not the LLM.
+- **Human handoff** pauses replay or discovery in the live browser session (`cua ops claim <run_id>` / `cua ops release <run_id>`). Replay re-checks and resumes after release; discovery requires a structured `--resolution`: `cleared_obstacle` resumes LLM discovery, while `workflow_advanced` aborts without emitting an artifact. A handoff-touched discovery artifact must pass `cua validate` before approval.
 
 ## Architecture and contracts
 
