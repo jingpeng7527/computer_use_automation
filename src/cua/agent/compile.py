@@ -285,5 +285,10 @@ def compile_capability(
             goal=templated_goal,
             discovery_run_id=discovery_run_id,
             transcript_sha256=transcript_sha256,
+            # Every entry here has resolution="cleared_obstacle" -- a
+            # "workflow_advanced" release sets transcript.success=False
+            # (agent/loop.py), which the refusal at the top of this
+            # function already raises on before this line is ever reached.
+            discovery_handoffs=len(transcript.interventions),
         ),
     )

@@ -27,6 +27,7 @@ class ExecutionGuard:
         self._last_observation: str | None = None
         self._stale_count = 0
         self._recovery_used = 0
+        self._discovery_handoffs_used = 0
 
     def check_step(self) -> None:
         """Call once per loop iteration / replay step. Raises if the step
@@ -59,4 +60,27 @@ class ExecutionGuard:
         if self._recovery_used >= self._bounds.recovery_budget_per_run:
             return False
         self._recovery_used += 1
+        return True
+
+    def reset_progress(self, observation: str) -> None:
+        """Called after a discovery handoff resumes: clears the
+        no-progress streak and seeds `_last_observation` with the FRESH
+        post-handoff snapshot, not None -- so the very next check_progress()
+        call compares against what the human actually left on screen,
+        rather than trivially treating any observation as "different from
+        nothing" for one free pass. Deliberately does not touch
+        `_step_count` or `_started_at`: this project has no reset path for
+        either, on purpose -- a discovery handoff clears confusion, not the
+        run's own step or wall-clock budget."""
+        self._stale_count = 0
+        self._last_observation = observation
+
+    def use_discovery_handoff(self) -> bool:
+        """Consumes one unit of the run's discovery-handoff budget
+        (policy.execution_bounds.max_discovery_handoffs, default 1).
+        Returns False (and consumes nothing) once exhausted, so a run that
+        keeps stalling after being handed back can't hand off forever."""
+        if self._discovery_handoffs_used >= self._bounds.max_discovery_handoffs:
+            return False
+        self._discovery_handoffs_used += 1
         return True

@@ -3,6 +3,7 @@
     cua serve-target     # run the local mock legacy console (the "target app")
     cua discover         # LLM-driven discovery run -> emits a capability artifact
     cua harden           # replay with bad input (no LLM), derive a runtime_match
+    cua validate         # pre-approval proof for an artifact whose discovery needed a handoff
     cua approve          # promote a draft artifact to approved -- replay refuses drafts
     cua tag-output       # mark a declared output's sensitivity for replay-time redaction
     cua set-scope        # declare a capability's own base_url/route scope (narrows policy.yaml)
@@ -511,22 +512,177 @@ def harden(
 
 
 @app.command()
+def validate(
+    artifact: str = typer.Option(..., help="Path to a draft artifact that recorded a discovery handoff."),
+    param: list[str] = typer.Option(..., "--param", "-p", help="key=value input param for the validation run."),
+) -> None:
+    """Pre-approval validation for an artifact whose discovery run needed a
+    human handoff (Provenance.discovery_handoffs > 0): replays it from a
+    FRESH browser session, with `status` flipped to "approved" only in
+    memory (never written to the file on disk -- see this command's own
+    module docstring section, agent/loop.py's discovery-handoff design, and
+    REPORT.md sec 5/7), and with escalation hard-disabled. Getting stuck
+    here is a validation FAILURE, not a second chance to have a human help
+    -- the entire point is proving the recorded LLM steps hold up
+    unattended, on their own, with nobody watching.
+
+    Writes `evidence/<run_id>/validation.json`, which `cua approve
+    --validation-run <run_id>` checks before promoting an artifact that
+    needed a handoff: this artifact's own content hash (excluding
+    `status`), so a subsequent edit invalidates the proof; capability_id
+    and version; and confirmation this validation run itself never
+    escalated (handoff_count is always exactly 0 -- there is no code path
+    in this command that could set it otherwise)."""
+    import json
+    from datetime import UTC, datetime
+    from pathlib import Path
+
+    from cua.replay import replay as run_replay
+    from cua.safety import load_policy
+    from cua.schema import Capability, approval_snapshot_sha256
+    from cua.surface import WebAdapter
+
+    params: dict[str, str] = {}
+    for item in param:
+        key, sep, value = item.partition("=")
+        if not sep:
+            typer.secho(f"--param must be key=value, got {item!r}", fg=typer.colors.RED)
+            raise typer.Exit(code=1)
+        params[key] = value
+
+    capability = Capability.model_validate_json(Path(artifact).read_text())
+    if capability.status != "draft":
+        typer.secho(
+            f"{artifact} is {capability.status!r}, not 'draft' -- cua validate is a pre-approval "
+            f"check, nothing left to validate before promoting an already-approved artifact.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
+    if capability.provenance.discovery_handoffs == 0:
+        typer.secho(
+            f"{artifact} recorded no discovery handoff -- cua validate exists for the artifacts "
+            f"that did; run `cua approve` on this one directly.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
+
+    # In-memory only: replay() itself is never modified or bypassed to
+    # accept this. A real `cua replay` against the SAME file on disk still
+    # refuses it -- draft is draft until a human runs `cua approve` for
+    # real. Round-tripped through model_validate (not a bare model_copy)
+    # so an otherwise-invalid artifact can't slip through here either.
+    in_memory_approved = Capability.model_validate(
+        {**capability.model_dump(mode="json"), "status": "approved"}
+    )
+
+    run_id = f"validate-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}"
+    evidence_dir = Path("evidence") / run_id
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+
+    policy = load_policy()
+    adapter = WebAdapter(headless=False)
+    try:
+        result = run_replay(
+            in_memory_approved, params, adapter, policy, run_id=run_id, evidence_dir=str(evidence_dir)
+            # no `broker` -- escalation is hard-disabled, not merely defaulted off, matching this
+            # command's own scope: getting stuck here is what a validation is FOR catching.
+        )
+    finally:
+        adapter.close()
+
+    record = {
+        "run_id": run_id,
+        "mode": "preapproval_validation",
+        "capability_id": capability.capability_id,
+        "version": capability.version,
+        "approval_snapshot_sha256": approval_snapshot_sha256(capability),
+        "status": result.status,
+        "handoff_count": 0,
+        "fresh_session": True,
+    }
+    (evidence_dir / "validation.json").write_text(json.dumps(record, indent=2))
+    (evidence_dir / "result.json").write_text(result.model_dump_json(indent=2))
+
+    if result.status == "success":
+        typer.secho(f"validation PASSED: {artifact} replays clean from a fresh session.", fg=typer.colors.GREEN)
+        typer.echo(f"cua approve --artifact {artifact} --validation-run {run_id}")
+    else:
+        typer.secho(
+            f"validation FAILED: status={result.status!r} -- {artifact} is not ready for approval.",
+            fg=typer.colors.RED,
+        )
+        typer.echo(f"evidence written to {evidence_dir}/")
+        raise typer.Exit(code=1)
+
+
+@app.command()
 def approve(
     artifact: str = typer.Option(..., help="Path to a saved capability artifact (JSON)."),
+    validation_run: str = typer.Option(
+        None,
+        "--validation-run",
+        help="Required when the artifact's provenance shows a discovery handoff: the `cua "
+        "validate` run_id whose evidence proves a clean, unattended replay of THIS exact content.",
+    ),
 ) -> None:
     """Promote a draft artifact to approved -- the human review step
     unattended replay now requires (REPORT.md sec 7). A real workflow would
     gate this on a signed review; this is the CLI-only version the brief's
     scope calls for. Saves in place at the same version, so the resulting
-    git diff is exactly the one-line status flip a reviewer approved."""
+    git diff is exactly the one-line status flip a reviewer approved.
+
+    An artifact whose discovery run needed a human handoff cannot be
+    approved directly, no matter what --validation-run is passed as: its
+    LLM-recorded steps ran partly on a page a human already reached into,
+    so nothing here has yet proven they hold up completely unattended.
+    `cua validate` is the one way to produce that proof; this command only
+    ever checks evidence already on disk, never runs a browser itself."""
+    import json
     from pathlib import Path
 
-    from cua.schema import ArtifactStore, Capability
+    from cua.schema import ArtifactStore, Capability, approval_snapshot_sha256
 
     capability = Capability.model_validate_json(Path(artifact).read_text())
     if capability.status == "approved":
         typer.echo(f"{artifact} is already approved.")
         return
+
+    if capability.provenance.discovery_handoffs > 0:
+        if not validation_run:
+            typer.secho(
+                f"{artifact} recorded {capability.provenance.discovery_handoffs} discovery "
+                f"handoff(s) -- run `cua validate --artifact {artifact} -p ...` first, then pass "
+                f"--validation-run <its run_id> here.",
+                fg=typer.colors.RED,
+            )
+            raise typer.Exit(code=1)
+        validation_path = Path("evidence") / validation_run / "validation.json"
+        if not validation_path.exists():
+            typer.secho(f"no validation evidence found at {validation_path}", fg=typer.colors.RED)
+            raise typer.Exit(code=1)
+        record = json.loads(validation_path.read_text())
+        problems = []
+        if record.get("mode") != "preapproval_validation":
+            problems.append(f"mode={record.get('mode')!r}, expected 'preapproval_validation'")
+        if record.get("status") != "success":
+            problems.append(f"status={record.get('status')!r}, expected 'success'")
+        if record.get("handoff_count") != 0:
+            problems.append(f"handoff_count={record.get('handoff_count')!r} -- validation itself was not clean")
+        if record.get("capability_id") != capability.capability_id:
+            problems.append("capability_id does not match this artifact")
+        if record.get("version") != capability.version:
+            problems.append("version does not match this artifact")
+        current_hash = approval_snapshot_sha256(capability)
+        if record.get("approval_snapshot_sha256") != current_hash:
+            problems.append(
+                f"{artifact} has changed since {validation_run!r} validated it -- re-run cua validate"
+            )
+        if problems:
+            typer.secho(f"validation run {validation_run!r} does not prove this artifact is safe to approve:", fg=typer.colors.RED)
+            for p in problems:
+                typer.secho(f"  {p}", fg=typer.colors.RED)
+            raise typer.Exit(code=1)
+
     # model_copy() doesn't re-validate; round-trip through model_validate so
     # an otherwise-invalid artifact can't slip through on the way to approval.
     approved = Capability.model_validate(

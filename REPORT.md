@@ -602,6 +602,10 @@ on a `drifting` verdict is the hook a CI step would need, just not wired to one 
 - a step classified `IRREVERSIBLE` requires human authorisation by policy
 - during discovery, N consecutive steps produce no state change
 
+The first three are replay-side and share one mechanism, covered first below. The fourth is
+discovery-side and needed a genuinely different one -- covered on its own, after, because
+"replay's handoff, reused as-is" would have produced a broken artifact (see that section for why).
+
 **Routing with context.** An intervention request carries what an operator needs to act without
 reconstructing the run: capability and goal, run id, step id, reason code, expected versus
 observed, a screenshot, the completed step list, and the session handle. Redaction rules apply to
@@ -761,6 +765,76 @@ Also honest about a limit: human actions are recorded as a time window with befo
 screenshots, URL deltas and an operator note, not as a semantic event stream. Capturing raw input
 events is feasible, but mapping them reliably back to semantic controls is not a solved problem
 at this scope, and claiming otherwise would be claiming more than the code does.
+
+**Discovery-side handoff -- a different mechanism, not replay's reused.** The fourth trigger above
+looks like it should be the same problem as the first three: automation is stuck, a human clears
+it, control comes back. Reusing replay's handoff as-is would be wrong in a way that only shows up
+once compiled: `StepLog` only ever records an LLM tool call, so if a human's own clicks resolved
+the stall, whatever they did is invisible to `compile_capability()` -- the resulting artifact would
+be missing exactly the steps that got it unstuck, and would fail the moment anyone replayed it
+unattended. The fix is not a variant of resume; it's a narrower contract for what a discovery
+handoff is even allowed to produce.
+
+*The operator declares a structured resolution, not a fact.* Unlike replay, discovery has no
+compiled checkpoint yet to mechanically re-derive a resume point from -- there is nothing here
+playing `find_resume_point`'s role. So the person holding the lease must say, in one of exactly two
+words, what happened:
+
+- `cleared_obstacle` -- a transient obstacle (an unexpected dialog, a stuck load) is gone. Control
+  returns to the LLM with a FRESH observation; the loop continues, and only what the LLM decides
+  from here becomes a `StepLog`.
+- `workflow_advanced` -- the operator did some or all of the actual task by hand. Whatever the LLM
+  had recorded up to this point cannot become an artifact, because the steps that mattered were
+  never logged. The run aborts with `success=False` -- `compile_capability()`'s existing "cannot
+  compile a failed discovery run" refusal is what actually prevents an artifact here; no second,
+  parallel way to say "no artifact" was added for this case.
+
+`ControlBroker.release()` enforces this itself (`ControlRow.phase`, written by `mark_stuck()`, never
+by whoever calls release), not the CLI: a replay-phase intervention takes no `--resolution` at all
+and a discovery-phase one requires one of exactly the two values above, or the broker raises before
+the state transition happens. Trusting the CLI layer alone would mean any other caller of the same
+broker could bypass the distinction; enforcing it in the one place every caller has to go through
+does not.
+
+*Budgets are layered, and only one layer resets.* `ExecutionGuard.reset_progress()` clears the
+no-progress streak and reseeds it with the real post-handoff observation -- nothing else. `max_steps`
+and the wall-clock ceiling have no reset path at all (by omission, not an added check: those
+counters simply never expose one), and a SEPARATE bound,
+`policy.execution_bounds.max_discovery_handoffs` (default 1, consumed by
+`ExecutionGuard.use_discovery_handoff()`), caps how many times one run may hand off at all --
+otherwise a genuinely confused LLM and a patient operator could hand off forever without ever
+touching `max_steps`.
+
+*What the human did is evidence, never an artifact input, here too.* Same shape as replay's
+`human_action.json` (before/after URL and screenshot, the operator's own note, `same_session:
+true`) plus the one field replay's version doesn't need: `resolution` itself, recorded as the
+structured command it is -- never promoted to a derived "fact" the way
+`human_action.human_performed_pending_action` is, because there is no checkpoint here that could
+derive one.
+
+*A handoff artifact cannot be approved directly.* `Provenance.discovery_handoffs` (incremented by
+`compile_capability()`, once per `cleared_obstacle` intervention in the transcript) is what `cua
+approve` checks. Nonzero, and it refuses outright: the recorded LLM steps ran partly on a page a
+human already reached into, and nothing has yet proven they hold up completely unattended.
+`cua validate` is the one way to produce that proof -- it replays the artifact from a FRESH browser
+session with `status` flipped to `"approved"` only in memory (never written to disk; `replay()`
+itself is neither modified nor bypassed, so a real `cua replay` against the same file still refuses
+it) and with escalation hard-disabled, not merely defaulted off: getting stuck during validation is
+what validation exists to catch, not a second chance at a handoff. A pass writes
+`evidence/<run_id>/validation.json`, carrying an `approval_snapshot_sha256` -- the whole artifact
+hashed, deliberately excluding only `status` rather than a hand-picked list of "fields that affect
+execution" (that list is a judgment call with real room to leave one out; hashing everything else
+costs nothing but an occasional redundant re-validation). `cua approve --validation-run <id>`
+recomputes that hash against the artifact it is about to promote and refuses on any mismatch, so an
+edit made after validation -- even one that looks cosmetic -- invalidates the proof rather than
+silently riding through on a stale evidence file.
+
+`tests/test_discovery_handoff.py` exercises the full state machine (a real `ControlBroker` against a
+temp SQLite file, a scripted LLM provider and surface, no browser) for both resolutions and for the
+no-broker case unchanged; `tests/test_execution_guard.py` covers the budget layering directly;
+`tests/test_validate_approve_gate.py` runs `cua validate` then `cua approve --validation-run`
+against the real target app and a real browser, including the tamper case (an edit between
+validation and approval is refused, not silently accepted).
 
 ---
 
@@ -976,6 +1050,19 @@ hatch was never wired up in `evaluate_condition` (unconditionally `False`), whic
 possible to build a `Checkpoint` that could never pass -- structurally valid, silently
 unsatisfiable. Removed from the union rather than left half-built; it returns once a real branch
 backs it.
+
+*Discovery-side handoff.* Listed in Section 5's own "Detecting stuck" trigger table since an early
+draft -- `guard.check_progress()` (agent/loop.py) had always raised `BoundExceeded` on a no-progress
+stall, but nothing caught it: the CLI's `discover` command only ever handled `ValueError`, so a
+stall propagated out as an unhandled exception and the browser closed in `finally`. Genuinely
+harder than "reuse replay's handoff," not merely unwired: discovery has no compiled checkpoint to
+derive a resume point from, and a human's own clicks during a handoff would otherwise vanish from
+the artifact entirely (`StepLog` only records LLM tool calls). Built as its own mechanism --
+`resolution` as a structured, broker-enforced operator command
+(`cleared_obstacle`/`workflow_advanced`), a separate `max_discovery_handoffs` budget, and a
+`cua validate` / `cua approve --validation-run` gate proving a handoff-touched artifact still
+replays clean, unattended, from a fresh session before it can be promoted. Section 5 covers it in
+full.
 
 **What I would build next, in order**
 

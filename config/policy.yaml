@@ -81,6 +81,10 @@ execution_bounds:
   per_wait_timeout_ms: 10000
   recovery_budget_per_run: 5
   no_progress_max_consecutive_steps: 3
+  # A discovery handoff clears the no-progress counter above, never this
+  # run's max_steps or wall-clock ceiling. This is the separate cap on how
+  # many times ONE discovery run may hand off to a human at all.
+  max_discovery_handoffs: 1
 
 # While a run is PAUSED awaiting a human operator (sec 5), the executor
 # pings this route periodically so the target app's session doesn't expire

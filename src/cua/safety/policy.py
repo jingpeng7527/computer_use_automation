@@ -48,6 +48,12 @@ class ExecutionBounds(BaseModel):
     per_wait_timeout_ms: int = 10_000
     recovery_budget_per_run: int = 5
     no_progress_max_consecutive_steps: int = 3
+    # A discovery handoff resets the no-progress counter, never max_steps or
+    # the wall-clock ceiling (ExecutionGuard has no reset path for either) --
+    # but without a SEPARATE cap on how many times a run can hand off, a
+    # stuck discovery run and an operator willing to keep clicking "release"
+    # could still loop indefinitely. Global per run, not per-trigger.
+    max_discovery_handoffs: int = 1
 
 
 class KeepAlive(BaseModel):

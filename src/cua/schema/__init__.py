@@ -22,6 +22,7 @@ from .capability import (
     RecoveryBudget,
     RuntimeMatch,
     Sensitivity,
+    approval_snapshot_sha256,
 )
 from .common import (
     Checkpoint,
@@ -105,6 +106,7 @@ __all__ = [
     "ValueEquals",
     "Wait",
     "WaitSpec",
+    "approval_snapshot_sha256",
     "parse_ref",
     "validate_into",
 ]

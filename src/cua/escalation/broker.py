@@ -34,9 +34,20 @@ CREATE TABLE IF NOT EXISTS control (
     reason TEXT,
     updated_at REAL NOT NULL,
     claimed_at REAL,
-    release_note TEXT
+    release_note TEXT,
+    phase TEXT NOT NULL DEFAULT 'replay' CHECK(phase IN ('replay','discovery')),
+    resolution TEXT CHECK(resolution IS NULL OR resolution IN ('cleared_obstacle','workflow_advanced'))
 )
 """
+
+# Columns added after the table already shipped: CREATE TABLE IF NOT EXISTS
+# does nothing for a db_path that already exists on disk with the OLD
+# column set, so a lightweight migration is required -- this project's own
+# runs/control.db (gitignored, local state) predates `phase`/`resolution`.
+_MIGRATIONS: list[str] = [
+    "ALTER TABLE control ADD COLUMN phase TEXT NOT NULL DEFAULT 'replay'",
+    "ALTER TABLE control ADD COLUMN resolution TEXT",
+]
 
 
 @dataclass
@@ -49,6 +60,8 @@ class ControlRow:
     updated_at: float
     claimed_at: float | None = None
     release_note: str | None = None
+    phase: str = "replay"
+    resolution: str | None = None
 
 
 class ControlBroker:
@@ -60,19 +73,33 @@ class ControlBroker:
         # without needing an explicit BEGIN/COMMIT around it.
         self._conn = sqlite3.connect(self.db_path, isolation_level=None, timeout=10)
         self._conn.execute(_SCHEMA)
+        existing_columns = {row[1] for row in self._conn.execute("PRAGMA table_info(control)")}
+        if "phase" not in existing_columns:
+            self._conn.execute(_MIGRATIONS[0])
+        if "resolution" not in existing_columns:
+            self._conn.execute(_MIGRATIONS[1])
 
     def close(self) -> None:
         self._conn.close()
 
-    def mark_stuck(self, run_id: str, reason: str) -> None:
+    def mark_stuck(self, run_id: str, reason: str, *, phase: str = "replay") -> None:
+        """`phase` names which side of the system raised this intervention
+        -- written here, not accepted later from whoever calls release(),
+        because the caller of `ops release` is exactly who a phase-mismatch
+        check has to distrust. `release()` reads it back off the row to
+        decide whether `resolution` is required, optional or forbidden."""
+        if phase not in ("replay", "discovery"):
+            raise ValueError(f"phase must be 'replay' or 'discovery', got {phase!r}")
         now = time.time()
         self._conn.execute(
             "INSERT INTO control(run_id, state, holder, lease_expires_at, reason, updated_at, "
-            "claimed_at, release_note) VALUES (?, 'PAUSED', NULL, NULL, ?, ?, NULL, NULL) "
+            "claimed_at, release_note, phase, resolution) "
+            "VALUES (?, 'PAUSED', NULL, NULL, ?, ?, NULL, NULL, ?, NULL) "
             "ON CONFLICT(run_id) DO UPDATE SET "
             "state='PAUSED', holder=NULL, lease_expires_at=NULL, reason=excluded.reason, "
-            "updated_at=excluded.updated_at, claimed_at=NULL, release_note=NULL",
-            (run_id, reason, now),
+            "updated_at=excluded.updated_at, claimed_at=NULL, release_note=NULL, "
+            "phase=excluded.phase, resolution=NULL",
+            (run_id, reason, now, phase),
         )
 
     def claim(self, run_id: str, holder: str, lease_seconds: float = 300) -> bool:
@@ -95,12 +122,51 @@ class ControlBroker:
         )
         return cur.rowcount > 0
 
-    def release(self, run_id: str, holder: str, note: str | None = None) -> bool:
+    def release(
+        self, run_id: str, holder: str, note: str | None = None, *, resolution: str | None = None
+    ) -> bool:
+        """Phase-aware, enforced HERE rather than trusted to whichever CLI
+        command calls this: a replay-phase intervention takes no
+        `resolution` at all (find_resume_point derives the resume point
+        mechanically, by re-checking the actual page -- there is nothing
+        for a human to declare); a discovery-phase intervention REQUIRES
+        one of exactly two values, because discovery has no compiled
+        checkpoint yet to derive a resume point from, so the only honest
+        source of "what happened" is a structured choice by whoever holds
+        the lease -- never free text, and never skippable.
+
+            cleared_obstacle  -- a transient UI obstacle is gone; hand
+                                 control back to the LLM to observe and
+                                 keep deciding.
+            workflow_advanced -- the operator did some or all of the
+                                 actual task by hand. Whatever the LLM
+                                 recorded before this point cannot become
+                                 an artifact: the steps that mattered were
+                                 never logged.
+
+        Raises ValueError on a phase/resolution mismatch (distinct from
+        returning False, which means "the conditional UPDATE's WHERE
+        clause didn't match" -- a stale holder or wrong state) so the CLI
+        can report the ACTUAL problem instead of a generic failure.
+        """
+        row = self.get_state(run_id)
+        if row is None:
+            return False
+        if row.phase == "discovery" and resolution not in ("cleared_obstacle", "workflow_advanced"):
+            raise ValueError(
+                f"{run_id!r} is a discovery-phase intervention; --resolution must be "
+                f"'cleared_obstacle' or 'workflow_advanced', got {resolution!r}"
+            )
+        if row.phase == "replay" and resolution is not None:
+            raise ValueError(
+                f"{run_id!r} is a replay-phase intervention; it does not take --resolution "
+                f"(the resume point is derived by find_resume_point, not declared)"
+            )
         now = time.time()
         cur = self._conn.execute(
-            "UPDATE control SET state='RESUMING', updated_at=?, release_note=? "
+            "UPDATE control SET state='RESUMING', updated_at=?, release_note=?, resolution=? "
             "WHERE run_id=? AND state='HUMAN' AND holder=?",
-            (now, note, run_id, holder),
+            (now, note, resolution, run_id, holder),
         )
         return cur.rowcount > 0
 
@@ -113,7 +179,7 @@ class ControlBroker:
     def get_state(self, run_id: str) -> ControlRow | None:
         row = self._conn.execute(
             "SELECT run_id, state, holder, lease_expires_at, reason, updated_at, "
-            "claimed_at, release_note FROM control WHERE run_id=?",
+            "claimed_at, release_note, phase, resolution FROM control WHERE run_id=?",
             (run_id,),
         ).fetchone()
         if row is None:
@@ -127,7 +193,9 @@ class ControlBroker:
             # Lazily-observed expiry: report PAUSED without writing anything.
             # The next claim() call performs the actual state transition, in
             # the same conditional UPDATE that grants the new claim.
-            return ControlRow(control.run_id, "PAUSED", None, None, control.reason, control.updated_at)
+            return ControlRow(
+                control.run_id, "PAUSED", None, None, control.reason, control.updated_at, phase=control.phase
+            )
         return control
 
     def is_automations_turn(self, run_id: str) -> bool:

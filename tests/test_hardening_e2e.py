@@ -200,3 +200,42 @@ def test_build_runtime_match_disambiguates_two_outcomes_at_the_same_step() -> No
         outcome_code="PERMISSION_DENIED",
     )
     assert frozen.id != restricted.id
+
+
+class _NeverTouchedAdapter:
+    """Every method raises. A passing test using this proves
+    run_hardening_pass refused before calling replay() at all -- not that
+    replay() happened to refuse quickly."""
+
+    def observe(self):
+        raise AssertionError("draft hardening should refuse before touching the surface")
+
+    def resolve(self, target):
+        raise AssertionError("draft hardening should refuse before touching the surface")
+
+    def act(self, action, resolution=None, value=None):
+        raise AssertionError("draft hardening should refuse before touching the surface")
+
+    def wait_for(self, condition, timeout_ms):
+        raise AssertionError("draft hardening should refuse before touching the surface")
+
+    def location(self):
+        raise AssertionError("draft hardening should refuse before touching the surface")
+
+    def screenshot(self, path):
+        raise AssertionError("draft hardening should refuse before touching the surface")
+
+
+def test_run_hardening_pass_refuses_a_draft_capability_before_touching_the_surface() -> None:
+    """Regression: run_hardening_pass used to check only `result.status !=
+    "failed"` after calling replay() -- for a draft capability, replay()
+    itself returns status="failed" with failure.kind="not_approved" (the
+    approval gate, not a real divergence), which that check couldn't tell
+    apart from a genuine bad-input divergence. Left unguarded, a draft
+    would have been classified against whatever the adapter happened to be
+    showing (nothing navigated to yet) instead of being refused outright."""
+    draft = Capability.model_validate_json(ARTIFACT_PATH.read_text()).model_copy(update={"status": "draft"})
+    policy = load_policy()
+
+    with pytest.raises(ValueError, match="approved"):
+        run_hardening_pass(draft, {"member_id": "99999"}, _NeverTouchedAdapter(), policy, run_id="test-run")

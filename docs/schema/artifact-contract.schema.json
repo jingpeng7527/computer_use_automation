@@ -391,6 +391,11 @@
           "title": "Discovered At",
           "type": "string"
         },
+        "discovery_handoffs": {
+          "default": 0,
+          "title": "Discovery Handoffs",
+          "type": "integer"
+        },
         "discovery_run_id": {
           "title": "Discovery Run Id",
           "type": "string"

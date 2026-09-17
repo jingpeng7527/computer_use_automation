@@ -10,6 +10,8 @@ from __future__ import annotations
 import time
 from datetime import UTC, datetime
 
+import pytest
+
 from cua.escalation import ControlBroker, find_resume_point
 from cua.schema import (
     AppProfile,
@@ -68,6 +70,45 @@ def test_release_then_claim_again_after_resume(tmp_path) -> None:
     broker.mark_resumed("run-3")
     assert broker.get_state("run-3").state == "AUTOMATION"
     assert broker.is_automations_turn("run-3") is True
+
+
+# ---- phase/resolution: enforced by the broker itself, not by whichever CLI
+# command happens to call release() ----
+
+
+def test_replay_phase_defaults_and_forbids_resolution(tmp_path) -> None:
+    broker = _broker(tmp_path)
+    broker.mark_stuck("run-replay", "checkpoint_failed")  # phase defaults to "replay"
+    broker.claim("run-replay", holder="alice", lease_seconds=60)
+
+    assert broker.get_state("run-replay").phase == "replay"
+    with pytest.raises(ValueError, match="does not take --resolution"):
+        broker.release("run-replay", holder="alice", resolution="cleared_obstacle")
+    # no resolution at all is the correct, unmarked call -- still works
+    assert broker.release("run-replay", holder="alice") is True
+
+
+def test_discovery_phase_requires_a_valid_resolution(tmp_path) -> None:
+    broker = _broker(tmp_path)
+    broker.mark_stuck("run-disco", "no progress for 3 consecutive steps", phase="discovery")
+    broker.claim("run-disco", holder="alice", lease_seconds=60)
+
+    assert broker.get_state("run-disco").phase == "discovery"
+    with pytest.raises(ValueError, match="cleared_obstacle.*workflow_advanced|resolution"):
+        broker.release("run-disco", holder="alice")  # missing entirely
+    with pytest.raises(ValueError, match="resolution"):
+        broker.release("run-disco", holder="alice", resolution="looks fine to me")  # free text, not the enum
+
+    assert broker.release("run-disco", holder="alice", resolution="cleared_obstacle") is True
+    row = broker.get_state("run-disco")
+    assert row.state == "RESUMING"
+    assert row.resolution == "cleared_obstacle"
+
+
+def test_mark_stuck_rejects_an_unknown_phase(tmp_path) -> None:
+    broker = _broker(tmp_path)
+    with pytest.raises(ValueError, match="phase"):
+        broker.mark_stuck("run-bad", "whatever", phase="not_a_real_phase")
 
 
 # ---- resume candidate precedence: success_condition before the step's own checkpoint ----

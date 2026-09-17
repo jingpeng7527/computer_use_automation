@@ -74,7 +74,24 @@ def run_hardening_pass(
     generic failure description, e.g. "no strategy resolved to exactly one
     element", which the target page obviously never renders and so could
     never actually fire on replay). Raises if nothing diverged -- there's
-    nothing to harden if bad input still succeeds."""
+    nothing to harden if bad input still succeeds.
+
+    Refuses a draft `capability` explicitly, before calling replay() at
+    all: replay() itself would report status="failed" with
+    failure.kind="not_approved" for a draft -- indistinguishable, to the
+    `result.status != "failed"` check below, from a genuine bad-input
+    divergence. Left unguarded, that not_approved refusal would be handed
+    straight to classify_divergence() against whatever the adapter happens
+    to be showing (nothing navigated to yet, typically a blank page),
+    producing a classification and candidate_texts that describe nothing
+    real. `cua harden` always runs against an approved base by design (see
+    README's demo path); this makes that a checked precondition, not an
+    assumption."""
+    if capability.status != "approved":
+        raise ValueError(
+            f"cua harden requires an approved base capability, got status={capability.status!r} "
+            f"-- run `cua approve` first"
+        )
     result = replay(capability, bad_params, adapter, policy, run_id=run_id)
     if result.status != "failed":
         raise ValueError(

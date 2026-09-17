@@ -9,6 +9,8 @@ runtime_matches and steps.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from datetime import datetime
 from typing import Literal
@@ -120,6 +122,16 @@ class Provenance(BaseModel):
     discovery_run_id: str  # -> evidence/<discovery_run_id>/
     transcript_sha256: str
     human_edited: bool = False
+    # How many times a human took the wheel during THIS discovery run to
+    # clear an obstacle (agent/loop.py's discovery-handoff mechanism,
+    # resolution="cleared_obstacle" only -- a "workflow_advanced" release
+    # aborts the run before compile_capability() is ever reached, so it
+    # never produces a value here at all). Read by `cua approve`: a
+    # capability with a nonzero count here can't be approved directly --
+    # the recorded LLM steps ran on a page a human already reached into,
+    # so the artifact needs a from-clean-state `cua validate` proving those
+    # steps hold up unattended before a reviewer may promote it.
+    discovery_handoffs: int = 0
 
 
 class Capability(BaseModel):
@@ -308,3 +320,26 @@ class Capability(BaseModel):
                         f"e.g. using {{{{input.{param.name}}}}}"
                     )
         return self
+
+
+def approval_snapshot_sha256(capability: Capability) -> str:
+    """A hash of the artifact's content, deliberately excluding ONLY
+    `status` -- the one field a `cua validate` run and the later `cua
+    approve` of the exact same content are guaranteed to disagree on
+    (draft when validated, approved once promoted). `cua approve` compares
+    this against the hash recorded in a validation run's evidence before
+    trusting it: if they differ, the artifact changed since it was
+    validated, and that validation no longer proves anything about the
+    current content.
+
+    Deliberately not a curated list of "fields that affect execution":
+    picking those by hand is a judgment call with real room to leave one
+    out, and there is no safety cost to including a field that doesn't
+    actually change replay behaviour (title, provenance, ...) -- worst
+    case, an edit to those asks for a redundant re-validation. Excluding a
+    field that DOES matter would let a real change through unnoticed,
+    which is the one failure mode this exists to rule out."""
+    snapshot = capability.model_dump(mode="json")
+    snapshot.pop("status")
+    canonical = json.dumps(snapshot, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode()).hexdigest()

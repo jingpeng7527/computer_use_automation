@@ -20,7 +20,7 @@ def raise_intervention(
     *,
     broker: ControlBroker,
     run_id: str,
-    capability_id: str,
+    capability_id: str | None = None,
     goal: str,
     step_id: str,
     reason: str,
@@ -30,12 +30,25 @@ def raise_intervention(
     policy: Policy,
     screenshot_ref: str | None = None,
     completed_steps: list[str] | None = None,
+    phase: str = "replay",
+    requested_capability_id: str | None = None,
 ) -> str:
+    """`capability_id` names a REAL, already-saved artifact -- true for
+    every replay-phase call, which is why it stayed required there. A
+    discovery-phase call has no artifact yet: `requested_capability_id` is
+    the id the run is HEADED for (the CLI's own `--name`), not a claim that
+    one already exists, so `capability_id` is left None instead of lying
+    about that. `phase` is written straight through to
+    `ControlBroker.mark_stuck()`, which is the one place that actually
+    enforces what `ops release` may accept for this run -- not read back
+    from this payload by anything."""
     intervention_id = f"{run_id}-intervention"
     payload = {
         "intervention_id": intervention_id,
         "run_id": run_id,
+        "phase": phase,
         "capability_id": capability_id,
+        "requested_capability_id": requested_capability_id,
         "goal": redact_text(goal, policy),
         "step_id": step_id,
         "reason": reason,
@@ -49,5 +62,5 @@ def raise_intervention(
     out_dir = Path(evidence_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "intervention.json").write_text(json.dumps(payload, indent=2))
-    broker.mark_stuck(run_id, reason)
+    broker.mark_stuck(run_id, reason, phase=phase)
     return intervention_id
