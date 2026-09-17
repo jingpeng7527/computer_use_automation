@@ -79,12 +79,23 @@ def ops_release(
     note: str = typer.Option(
         None, help="What you actually did, for the human_action.json evidence record (optional but recommended)."
     ),
+    resolution: str = typer.Option(
+        None,
+        help="Required for a discovery-phase intervention, forbidden for a replay-phase one: "
+        "'cleared_obstacle' (hand back to the LLM with a fresh observation) or "
+        "'workflow_advanced' (you did some/all of the task by hand -- aborts, no artifact).",
+    ),
 ) -> None:
-    """Hand control back. The waiting `cua replay` process notices and resumes."""
+    """Hand control back. The waiting `cua replay`/`cua discover` process notices and resumes."""
     from cua.escalation import ControlBroker
 
     broker = ControlBroker()
-    if broker.release(run_id, holder=holder, note=note):
+    try:
+        released = broker.release(run_id, holder=holder, note=note, resolution=resolution)
+    except ValueError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+    if released:
         typer.secho(f"released {run_id!r}; the automation will resume.", fg=typer.colors.GREEN)
     else:
         typer.secho(f"could not release {run_id!r} as {holder!r} -- not your claim?", fg=typer.colors.RED)
@@ -109,6 +120,13 @@ def discover(
     target: str = typer.Option(..., help="Entry URL for the target app."),
     name: str = typer.Option(..., help="Capability name to save the artifact under."),
     max_steps: int = typer.Option(25, help="Stopping condition: max agent steps."),
+    handoff: bool = typer.Option(
+        True,
+        help="on a no-progress stall, raise a discovery-phase intervention and wait (same live "
+        "session) for 'cua ops claim/release --resolution ...' rather than failing immediately. "
+        "Disable for a quick, non-interactive check of the raw stalled result.",
+    ),
+    handoff_timeout_s: float = typer.Option(120, help="give up waiting for an operator after this long."),
 ) -> None:
     """Run the LLM observe -> decide -> act loop until the goal is met, then emit an artifact."""
     import hashlib
@@ -133,6 +151,9 @@ def discover(
     run_id = f"discovery-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}"
     evidence_dir = Path("evidence") / run_id
     evidence_dir.mkdir(parents=True, exist_ok=True)
+    capability_id = f"acme_core.{name}"  # computed here, not just before compiling: a discovery-phase
+    # intervention needs it as `requested_capability_id` -- the id this run is HEADED for, not a
+    # claim that an artifact already exists (see escalation/intervention.py's docstring).
 
     policy = load_policy()
     try:
@@ -142,11 +163,32 @@ def discover(
     provider = FallbackProvider(primary=GeminiProvider(), secondary=secondary)
     model_name = provider.primary.model
 
+    broker = None
+    if handoff:
+        from cua.escalation import ControlBroker
+
+        broker = ControlBroker()
+        typer.echo(
+            f"(if this run stalls: cua ops claim {run_id} , fix it in the browser window, then "
+            f"cua ops release {run_id} --resolution cleared_obstacle|workflow_advanced)"
+        )
+
     adapter = WebAdapter(headless=False)
     started_at = time.time()
     try:
         transcript = run_discovery(
-            goal, target, adapter, provider, policy, model_name=model_name, max_steps=max_steps
+            goal,
+            target,
+            adapter,
+            provider,
+            policy,
+            model_name=model_name,
+            max_steps=max_steps,
+            broker=broker,
+            run_id=run_id,
+            evidence_dir=str(evidence_dir),
+            requested_capability_id=capability_id,
+            escalation_max_wait_s=handoff_timeout_s,
         )
     except ValueError as exc:
         typer.secho(str(exc), fg=typer.colors.RED)
