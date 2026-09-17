@@ -16,6 +16,9 @@ engine, schema, and broker are the real code, unmodified.
 | `discovery-20260915043330/` | `cua discover --goal "look up member 12345 and read their current savings balance" --target http://127.0.0.1:8800/members/search --name lookup_savings_balance` | Live discovery, 6 real steps, 6.5s. Emits `acme_core.lookup_savings_balance` v1 (status `draft`). Gemini's free-tier daily quota was exhausted at the time, so `FallbackProvider` fell through to Groq mid-run -- `run_meta.json`'s `model` field (`"openai/gpt-oss-120b -> gemini-3.6-flash"`) and each step's `provider_model` say so honestly, rather than crediting the configured primary for a run it didn't fully do. |
 | `replay-20260915044628/` | `cua approve --artifact artifacts/acme_core.lookup_savings_balance/1.json`, then `cua replay --artifact artifacts/acme_core.lookup_savings_balance/1.json -p member_id=12345` | `SUCCESS`. `outputs.savings_balance` is a typed `Money` object (`{"amount_minor": 816000, "currency": "USD"}`), not a raw string. |
 | `replay-20260915044639/` | `cua harden ... --outcome-code MEMBER_NOT_FOUND` (emits v2, status `draft`), `cua approve --artifact .../2.json`, then `cua replay --artifact .../2.json -p member_id=99999` | `BUSINESS_OUTCOME`, code `MEMBER_NOT_FOUND`, detected after step `s2`. Not a crash: the artifact declares this outcome and the engine matched it against the observed page. |
+| `replay-20260916011636/` | `cua harden` derived `ACCOUNT_FROZEN` against fixture member `99001` the same observed-divergence way as `MEMBER_NOT_FOUND` above (emits v3, then v4 alongside `PERMISSION_DENIED` below), `cua approve --artifact .../4.json`, then `cua replay --artifact .../4.json -p member_id=99001` | `BUSINESS_OUTCOME`, code `ACCOUNT_FROZEN`, detected after step `s4`. |
+| `replay-20260916011639/` | same v4 artifact, `-p member_id=99002` (fixture member `99002`, permission-restricted) | `BUSINESS_OUTCOME`, code `PERMISSION_DENIED`, detected after step `s4`. Deriving both outcomes at the same step (`s4`) is what surfaced a real id collision in `build_runtime_match()` -- this row's `outcome.description` (`s4_business_outcome_PERMISSION_DENIED`) is the fix: an outcome-code/detect-text disambiguator, not just `f"{after_step}_{category}"`. |
+| `replay-20260916011641/` | same v4 artifact, `-p member_id=12345` | `SUCCESS`, same typed `Money` output as `replay-20260915044628/` -- confirms adding the two new `runtime_matches` above didn't disturb the original happy path. |
 | `replay-20260915044645/` | `cua replay --artifact artifacts/acme_core.lookup_savings_balance/2.json -p member_id=12345 --fault "inject=500" --no-handoff` | `FAILED` at step `s0`, kind `checkpoint_failed`. `s0-failure.png` is a real screenshot of the target app's "System Error 500" page. |
 | `demo-handoff-1789447614/` | same fault, with handoff enabled: `cua replay ... --fault "inject=500"`, then `cua ops claim <run_id>` / fix by hand / `cua ops release <run_id>` | `result_before_escalation.json`: `FAILED`, `intervention.json` raised (screenshot + reason + empty completed-step list, since it failed on step `s0`). Operator reloads the URL without `?inject=500` in the same browser window, releases control. `result_after_resume.json`: `SUCCESS` -- the resumed run re-checked its checkpoint and continued through to the same typed balance output. |
 | `replay-20260915224332/` | `cua overlay apply --base artifacts/acme_core.lookup_savings_balance/2.json --overlay overlays/acme_core.lookup_savings_balance/cu_northgate.json`, `cua approve --artifact artifacts/acme_core.lookup_savings_balance.cu_northgate/1.json`, then `cua replay --artifact artifacts/acme_core.lookup_savings_balance.cu_northgate/1.json -p member_id=12345 -p branch=main` | `SUCCESS` against the SECOND tenant (`/tenant-b/...` -- different field labels, a real HTML5-`required` branch selector the base tenant doesn't have, a differently-classed detail control, an abbreviated balance label). Same typed `Money` output shape as the base tenant's run. |
@@ -28,7 +31,7 @@ engine, schema, and broker are the real code, unmodified.
 | `discovery-handoff-cleared-20260917022631/` | real `run_discovery()` + a real `ControlBroker` across a real thread boundary -- a scripted, unresponsive page triggers a genuine no-progress stall, `cua ops claim`/`release --resolution cleared_obstacle` hands back a FRESH observation | discovery completes (`success: true`), `compile_capability()` emits a real `draft` artifact with `provenance.discovery_handoffs == 1`; a real `cua approve` on it (no `--validation-run`) is refused -- see `approve_refusal_without_validation.txt`. **Scripted model/surface** -- see `NOTE.md`. |
 | `discovery-handoff-advanced-20260917022632/` | same stall, released with `--resolution workflow_advanced` (the operator did the task by hand instead) | discovery aborts (`success: false`, reason names `workflow_advanced`); `compile_capability()` refuses with the same, unmodified "cannot compile a failed discovery run" error (`compile_refusal.txt`) -- no new exception type needed. **Scripted model/surface** -- see `NOTE.md`. |
 
-This is the sixth generation of this evidence set. Four rounds of review found
+This is the seventh generation of this evidence set. Four rounds of review found
 real, fixable gaps, each time in a versioned or committed file; a fourth round added
 the two `cu_northgate` runs once the overlay resolver was actually built; a fifth
 round closed a gap found by re-reading the assignment brief itself: three real
@@ -38,7 +41,12 @@ outside a test file. A sixth round added the two `discovery-handoff-*` runs once
 discovery-side handoff mechanism itself was built -- Section 3.6 of the brief lists
 "the agent is stuck during discovery" as one of three cases needing human-in-the-loop,
 and until this mechanism existed, only the other two (a stuck replay, an irreversible
-step) were actually wired to it.
+step) were actually wired to it. A seventh round added the three `replay-20260916011636/`
+`-011639/`/`-011641/` rows: `ACCOUNT_FROZEN` and `PERMISSION_DENIED` were derived,
+approved into v3/v4, and verified live the same day the member fixtures for them were
+built, but this index was never updated to include the runs that verified them -- found
+by a README/REPORT.md/design-doc cross-check that counted the runs actually on disk
+against the count this file claimed.
 
 1. The compiler could anchor a locator on a dynamic table cell -- a results row's
    member name ended up recorded in the artifact -- and discovery's own CLI wrote

@@ -211,13 +211,14 @@ against one real legacy application, since an argument isn't a test; bounded ass
 the budget/policy checks it requires; a signed review behind the approval gate, rather than a CLI
 command anyone can run.
 
-**The one thing that is not a cut:** the discovery run is real. Fourteen runs are committed and
+**The one thing that is not a cut:** the discovery run is real. Seventeen runs are committed and
 indexed in full in `evidence/README.md`, spanning a live LLM-driven discovery
 (`discovery-20260915043330/`), success/business-outcome/hard-failure replay, a real live handoff
 with an operator fixing an injected fault in the same browser session
-(`demo-handoff-1789447614/`), the multi-tenant overlay evidence above, and five further runs
-(`not_approved`/`recovery_refused`/`session_lost`/discovery-handoff × 2) added specifically because
-each mechanism was already real, implemented, and unit-tested, but had no evidence proving it fires
-outside a test file -- a gap found by re-reading the brief's own evidence requirement, not a bug in
-the mechanisms. Every path named above and throughout `docs/DESIGN_AND_IMPLEMENTATION.md` resolves
-to a real file in that tree.
+(`demo-handoff-1789447614/`), the multi-tenant overlay evidence above, live replays proving all
+three declared outcomes (`MEMBER_NOT_FOUND`/`ACCOUNT_FROZEN`/`PERMISSION_DENIED`) against their
+own member fixtures, and six further runs (`not_approved`/`recovery_refused` × 2/`session_lost`/
+discovery-handoff × 2) added specifically because each mechanism was already real, implemented,
+and unit-tested, but had no evidence proving it fires outside a test file -- a gap found by
+re-reading the brief's own evidence requirement, not a bug in the mechanisms. Every path named
+above and throughout `docs/DESIGN_AND_IMPLEMENTATION.md` resolves to a real file in that tree.

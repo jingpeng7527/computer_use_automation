@@ -263,7 +263,9 @@ hypothetical failure text.
 The implemented capability's declared outcomes are `MEMBER_NOT_FOUND`,
 `ACCOUNT_FROZEN`, and `PERMISSION_DENIED`, all three derived this same
 observed-divergence way against dedicated member fixtures (`99999`, `99001`,
-`99002`) rather than hand-authored. The two recoverable conditions the mock
+`99002`) rather than hand-authored -- verified live in
+`evidence/replay-20260915044639/`, `-20260916011636/`, and `-20260916011639/`
+respectively. The two recoverable conditions the mock
 app can trigger -- a session-warning interstitial and a slow load, both
 query-flag fixtures on the URL rather than something a bad `member_id`
 reaches -- are the one exception: `cua harden` takes bad *parameters*, not
@@ -596,7 +598,7 @@ against an assumption nothing here can actually verify.
 | Location | Responsibility |
 | --- | --- |
 | `src/cua/schema/` | Pydantic capability, overlay, and result contracts. |
-| `src/cua/agent/` | LLM-driven discovery, transcript compilation, and hardening workflow. |
+| `src/cua/agent/` | Discovery (the project's only LLM call), plus deterministic compilation and hardening. |
 | `src/cua/replay/` | Deterministic executor and terminal-match evaluation. |
 | `src/cua/surface/` | `SurfaceAdapter` protocol, the locator-ladder resolver, and the Playwright `WebAdapter`. |
 | `src/cua/safety/` | Deployment allowlist, scope checks, risk derivation, bounds, and redaction. |
