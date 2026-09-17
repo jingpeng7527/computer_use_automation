@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 
 from cua.escalation import ControlBroker, KeepAliveThread, raise_intervention
 from cua.safety import BoundExceeded, ExecutionGuard, Policy, check_allowed, gate
-from cua.schema import Click, Navigate, Read, TypeText
+from cua.schema import Click, Navigate, Read, Select, TextContains, TextMatcher, TypeText
 from cua.surface import InteractiveNode, ResolutionResult, SurfaceAdapter, SurfaceSnapshot
 
 from .providers.base import LLMProvider, ToolCall
@@ -389,7 +389,7 @@ def run_discovery(
             step_index += 1
             continue
 
-        if call.name in ("click", "type", "read") and node is None:
+        if call.name in ("click", "type", "read", "select") and node is None:
             transcript.steps.append(
                 StepLog(
                     step_index,
@@ -428,6 +428,41 @@ def run_discovery(
             elif call.name == "read":
                 value = adapter.act(Read(into=call.args["output_name"]), resolution=resolution)
                 transcript.outputs[call.args["output_name"]] = value or ""
+            elif call.name == "select":
+                adapter.act(
+                    Select(value_from=f"{{{{input.{call.args['param_name']}}}}}"),
+                    resolution=resolution,
+                    value=call.args["value"],
+                )
+            elif call.name == "wait":
+                until_text = call.args["until_text"]
+                timeout_ms = int(call.args.get("timeout_ms") or 10_000)
+                condition = TextContains(text=TextMatcher(mode="contains", value=until_text))
+                if not adapter.wait_for(condition, timeout_ms):
+                    transcript.steps.append(
+                        StepLog(
+                            step_index,
+                            call,
+                            None,
+                            snapshot,
+                            location.path,
+                            "error",
+                            f"timed out after {timeout_ms}ms waiting for {until_text!r} to appear",
+                            used_model,
+                        )
+                    )
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                f"Timed out waiting for {until_text!r}. Re-inspect the current "
+                                f"screen -- it may already show something else useful, or the "
+                                f"expected text may be wrong."
+                            ),
+                        }
+                    )
+                    step_index += 1
+                    continue
             else:
                 raise ValueError(f"model called an unknown tool: {call.name!r}")
             transcript.steps.append(

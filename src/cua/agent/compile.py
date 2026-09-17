@@ -37,10 +37,15 @@ from cua.schema import (
     Read,
     RoleName,
     RoleNameStrategy,
+    Select,
     Step,
     Target,
+    TextContains,
+    TextMatcher,
     TypeText,
     UrlMatches,
+    Wait,
+    WaitSpec,
 )
 from cua.surface import InteractiveNode, SurfaceSnapshot
 
@@ -130,18 +135,26 @@ def _classify_output_type(value: str) -> ParamType:
 
 
 def extract_param_literals(steps: list[StepLog]) -> dict[str, str]:
-    """Every literal a `type` tool call carried at discovery time, keyed by
-    the param_name it's recorded under -- the same mapping used to template
-    the goal before it reaches Provenance/summary. Exported so evidence
-    written straight from the transcript (cli.py's discover command sees
-    every step, not just the ones compile_capability keeps) can redact
-    those same literals identically, rather than each caller growing its
-    own copy of this logic."""
+    """Every literal a `type` or `select` tool call carried at discovery
+    time, keyed by the param_name it's recorded under -- the same mapping
+    used to template the goal before it reaches Provenance/summary.
+    Exported so evidence written straight from the transcript (cli.py's
+    discover command sees every step, not just the ones compile_capability
+    keeps) can redact those same literals identically, rather than each
+    caller growing its own copy of this logic.
+
+    `select` carries its literal under `value`, not `text` -- added after
+    `type` was the only bound-by-reference tool discovery had; a goal or
+    summary mentioning the chosen option (e.g. a branch name) would
+    otherwise survive un-templated, the same leak `type` was already fixed
+    for, just through a second tool nothing here was checking."""
     literals: dict[str, str] = {}
     for log in steps:
         args = log.tool_call.args
         if log.tool_call.name == "type" and "param_name" in args and "text" in args:
             literals[args["param_name"]] = args["text"]
+        elif log.tool_call.name == "select" and "param_name" in args and "value" in args:
+            literals[args["param_name"]] = args["value"]
     return literals
 
 
@@ -187,7 +200,8 @@ def compile_capability(
         # A heading appearing right after this step is evidence we landed
         # somewhere new on purpose -- becomes this step's checkpoint.
         checkpoint = None
-        if name in ("navigate", "click") and i + 1 < len(real_steps):
+        wait_spec = None
+        if name in ("navigate", "click", "select") and i + 1 < len(real_steps):
             next_snapshot = real_steps[i + 1].snapshot
             heading = next((n for n in next_snapshot if n.role == "heading" and n.name), None)
             if heading is not None:
@@ -237,6 +251,29 @@ def compile_capability(
             action = Read(into=output_name)
             risk = "SAFE_READ"
             intent = f"read {output_name}"
+        elif name == "select":
+            param_name = args["param_name"]
+            inputs.append(
+                ParamSpec(
+                    name=param_name,
+                    type="string",
+                    description=f"captured during discovery as a {param_name} value",
+                    sensitivity="none",  # a dropdown choice (e.g. a branch), not typed PII like `type`'s
+                )
+            )
+            action = Select(value_from=f"{{{{input.{param_name}}}}}")
+            risk = "REVERSIBLE_WRITE"
+            intent = f"select {{{{input.{param_name}}}}}"
+        elif name == "wait":
+            until_text = args["until_text"]
+            timeout_ms = int(args.get("timeout_ms") or 10_000)
+            action = Wait()
+            wait_spec = WaitSpec(
+                until=TextContains(text=TextMatcher(mode="contains", value=until_text)),
+                timeout_ms=timeout_ms,
+            )
+            risk = "SAFE_READ"
+            intent = f"wait for {until_text!r}"
         else:
             continue  # pragma: no cover -- loop.py never emits any other tool name
 
@@ -247,6 +284,7 @@ def compile_capability(
                 action=action,
                 risk_level=risk,
                 target=target,
+                wait=wait_spec,
                 checkpoint=checkpoint,
             )
         )
