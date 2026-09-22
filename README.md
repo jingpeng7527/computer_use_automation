@@ -1,5 +1,7 @@
 # Computer-Use Automation
 
+[![CI](https://github.com/jingpeng7527/computer_use_automation/actions/workflows/ci.yml/badge.svg)](https://github.com/jingpeng7527/computer_use_automation/actions/workflows/ci.yml)
+
 > Discover a browser workflow once with an LLM. Review it as a typed, versioned capability. Replay it deterministically—with no LLM in the execution loop.
 
 [Design & implementation](docs/DESIGN_AND_IMPLEMENTATION.md) · [Interview brief](docs/INTERVIEW_BRIEF.md) · [Assignment report](REPORT.md) · [Schema diagrams](docs/schema/) · [Run evidence](evidence/README.md)
