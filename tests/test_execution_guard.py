@@ -8,7 +8,9 @@ never actually bounded anything, could have shipped unnoticed.
 
 from __future__ import annotations
 
-from cua.safety import ExecutionGuard, load_policy
+import pytest
+
+from cua.safety import BoundExceeded, ExecutionGuard, load_policy
 
 
 def _guard(**bounds_overrides) -> ExecutionGuard:
@@ -43,12 +45,8 @@ def test_reset_progress_seeds_last_observation_not_none() -> None:
 
     guard.check_progress("still the same stuck page")  # stale_count -> 1, matches the seed
     guard.check_progress("still the same stuck page")  # stale_count -> 2
-    try:
+    with pytest.raises(BoundExceeded, match="no progress"):
         guard.check_progress("still the same stuck page")  # stale_count -> 3, raises
-    except Exception as exc:  # BoundExceeded
-        assert "no progress" in str(exc)
-    else:
-        raise AssertionError("expected a stall to still be detectable after a no-op reset")
 
 
 def test_use_discovery_handoff_is_bounded_and_consumes_one_unit() -> None:
@@ -75,9 +73,5 @@ def test_reset_progress_never_touches_step_count_or_wall_clock() -> None:
     guard.check_step()  # 1
     guard.reset_progress("whatever")
     guard.check_step()  # 2
-    try:
+    with pytest.raises(BoundExceeded, match="max_steps"):
         guard.check_step()  # 3 -- exceeds max_steps=2 regardless of the reset in between
-    except Exception as exc:  # BoundExceeded
-        assert "max_steps" in str(exc)
-    else:
-        raise AssertionError("expected max_steps to still be enforced after reset_progress()")

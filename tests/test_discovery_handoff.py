@@ -84,7 +84,6 @@ class _StallThenClearAdapter:
     def act(self, action, resolution=None, value=None):
         if action.type == "click":
             self.click_count += 1
-        return None
 
     def wait_for(self, condition, timeout_ms):
         return True
@@ -220,9 +219,10 @@ def test_discovery_handoff_workflow_advanced_aborts_with_no_artifact(tmp_path) -
 
     # The existing, unmodified refusal in compile_capability() is what
     # actually prevents an artifact -- no new exception type was needed.
+    import pytest
+
     from cua.agent import compile_capability
     from cua.schema import AppProfile
-    import pytest
 
     with pytest.raises(ValueError, match="cannot compile a failed discovery run"):
         compile_capability(
