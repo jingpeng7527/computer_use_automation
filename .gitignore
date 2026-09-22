@@ -28,3 +28,9 @@ node_modules/
 
 # Internal design notes, kept local only
 系统设计.md
+
+# local planning notes, not for publication
+HANDOFF_computer_use_eval.md
+
+# Claude Code local settings
+.claude/settings.local.json
