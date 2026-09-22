@@ -25,4 +25,8 @@ jobs:
         run: ruff check src tests
 
       - name: Test
-        run: pytest -q
+        # This project's CLI (cua replay/discover/harden/validate) always
+        # launches headed, not headless -- same-session human handoff is a
+        # core requirement, not something to weaken just for CI (see
+        # REPORT.md sec 1). xvfb-run gives it a virtual display instead.
+        run: xvfb-run -a pytest -q
