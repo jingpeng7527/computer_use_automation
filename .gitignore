@@ -34,3 +34,6 @@ HANDOFF_computer_use_eval.md
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Assignment prompt, not part of the project
+Assignment*.pdf
